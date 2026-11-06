@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <None Update="Data/**/*.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Data/**/*" CopyToOutputDirectory="PreserveNewest" />
     <Compile Remove="Code.Tests/**/*.cs" />
   </ItemGroup>
 </Project>

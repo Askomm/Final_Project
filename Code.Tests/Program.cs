@@ -206,6 +206,189 @@ Check("One-day boundary, repeated operation, and state preservation", () =>
         "A rejected request must leave the original collections unchanged.");
 });
 
+Check("Assignment 7 integrated Result workflow succeeds", () =>
+{
+    Result<RentalQuoteComparison, RentalError> result = RentalWorkflow.SearchQuotes(
+        SampleData(), "2", "14-10-2026", "16-10-2026");
+
+    Assert(result is Result<RentalQuoteComparison, RentalError>.Success,
+        "A valid request should complete the Result workflow.");
+    RentalQuoteComparison comparison =
+        ((Result<RentalQuoteComparison, RentalError>.Success)result).Value;
+    Assert(comparison.Standard.Quotes.Count == 2, "The successful chain should return two Standard quotes.");
+    Assert(comparison.Standard.Quotes.All(quote => quote.TotalPrice == 50000m),
+        "The Standard total should be 50,000 KZT for each sample car.");
+    Assert(comparison.Discounted.Quotes.All(quote => quote.TotalPrice == 45000m),
+        "The discounted total should be 45,000 KZT for each sample car.");
+});
+
+Check("Assignment 7 reports distinct domain failures", () =>
+{
+    Result<RentalQuoteComparison, RentalError> invalidId = RentalWorkflow.SearchQuotes(
+        SampleData(), "0", "14-10-2026", "16-10-2026");
+    AssertError(invalidId, "CUSTOMER_ID_INVALID");
+
+    Result<RentalQuoteComparison, RentalError> missingCustomer = RentalWorkflow.SearchQuotes(
+        SampleData(), "999", "14-10-2026", "16-10-2026");
+    AssertError(missingCustomer, "CUSTOMER_NOT_FOUND");
+
+    Result<RentalQuoteComparison, RentalError> invalidPeriod = RentalWorkflow.SearchQuotes(
+        SampleData(), "2", "14-10-2026", "14-10-2026");
+    AssertError(invalidPeriod, "RENTAL_PERIOD_INVALID");
+
+    Rental[] blockingRentals = SampleRentals().Append(
+        new Rental(2, 3, 1, new DateOnly(2026, 10, 14), new DateOnly(2026, 10, 16))).ToArray();
+    RentalData noCarsData = new(SampleCars(), SampleCustomers(), blockingRentals);
+    Result<RentalQuoteComparison, RentalError> noCars = RentalWorkflow.SearchQuotes(
+        noCarsData, "1", "14-10-2026", "16-10-2026");
+    AssertError(noCars, "NO_CARS_AVAILABLE");
+});
+
+Check("Option lookup distinguishes present and absent customers", () =>
+{
+    Option<Customer> present = RentalWorkflow.FindCustomer(SampleCustomers(), 2);
+    Assert(present is Option<Customer>.Some, "A known customer should produce Some.");
+    Assert(((Option<Customer>.Some)present).Value.Id == 2, "Some should carry the requested customer.");
+
+    Option<Customer> absent = RentalWorkflow.FindCustomer(SampleCustomers(), 999);
+    Assert(absent is Option<Customer>.None, "An unknown customer should produce None.");
+
+    Customer noLicense = new(9, "Taylor", 25, false, TransmissionType.Automat);
+    Option<Customer> customerWithFalseLicense = RentalWorkflow.FindCustomer(new[] { noLicense }, 9);
+    Assert(customerWithFalseLicense is Option<Customer>.Some,
+        "A stored false license flag is not the same as a missing customer.");
+    Assert(!((Option<Customer>.Some)customerWithFalseLicense).Value.HasDrivingLicense,
+        "The real false value should be preserved.");
+
+    Result<RentalQuoteComparison, RentalError> rejected = RentalWorkflow.SearchQuotes(
+        new RentalData(SampleCars(), new[] { noLicense }, Array.Empty<Rental>()),
+        "9", "14-10-2026", "16-10-2026");
+    AssertError(rejected, "CUSTOMER_NOT_ELIGIBLE");
+});
+
+Check("Map transforms a successful value", () =>
+{
+    bool called = false;
+    Result<int, RentalError> source = Result<int, RentalError>.Ok(21);
+    Result<string, RentalError> mapped = source.Map(value =>
+    {
+        called = true;
+        return $"Value: {value * 2}";
+    });
+
+    Assert(called, "Map should invoke the pure transformation for success.");
+    Assert(mapped is Result<string, RentalError>.Success,
+        "Map should preserve the success case.");
+    Assert(((Result<string, RentalError>.Success)mapped).Value == "Value: 42",
+        "Map should return the transformed value.");
+});
+
+Check("Bind continues with the next Result operation", () =>
+{
+    Result<int, RentalError> source = Result<int, RentalError>.Ok(5);
+    Result<int, RentalError> bound = source.Bind(value =>
+        Result<int, RentalError>.Ok(value + 7));
+
+    Assert(bound is Result<int, RentalError>.Success, "Bind should preserve a successful next result.");
+    Assert(((Result<int, RentalError>.Success)bound).Value == 12,
+        "The next operation should receive the previous value.");
+
+    Result<int, RentalError> rejectedNext = source.Bind<int>(_ =>
+        Result<int, RentalError>.Fail(new RentalError("NEXT_STEP_REJECTED", "Next step rejected.")));
+    AssertError(rejectedNext, "NEXT_STEP_REJECTED");
+});
+
+Check("Map and Bind propagate failure without invoking functions", () =>
+{
+    int calls = 0;
+    RentalError expected = new("STOPPED", "Previous step failed.");
+    Result<int, RentalError> source = Result<int, RentalError>.Fail(expected);
+
+    Result<int, RentalError> mapped = source.Map(value =>
+    {
+        calls++;
+        return value + 1;
+    });
+    Result<string, RentalError> bound = source.Bind(value =>
+    {
+        calls++;
+        return Result<string, RentalError>.Ok(value.ToString());
+    });
+
+    AssertError(mapped, "STOPPED");
+    AssertError(bound, "STOPPED");
+    Assert(calls == 0, "Neither Map nor Bind may call its function after failure.");
+});
+
+Check("Valid JSON file loads as one complete dataset", () =>
+{
+    string path = Path.Combine(Directory.GetCurrentDirectory(), "Data", "rental-data.json");
+    Result<RentalData, RentalError> result = RentalDataLoader.Load(path);
+
+    Assert(result is Result<RentalData, RentalError>.Success,
+        "The sample JSON file should be read successfully.");
+    RentalData data = ((Result<RentalData, RentalError>.Success)result).Value;
+    Assert(data.Cars.Count == 5 && data.Customers.Count == 3 && data.Rentals.Count == 1,
+        "All three data collections should be loaded together.");
+});
+
+Check("Missing input file becomes an explicit failure", () =>
+{
+    string directory = Path.Combine(Path.GetTempPath(), "assignment7-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(directory);
+    try
+    {
+        Result<RentalData, RentalError> result = RentalDataLoader.Load(
+            Path.Combine(directory, "missing.json"));
+        AssertError(result, "DATA_FILE_MISSING");
+    }
+    finally
+    {
+        Directory.Delete(directory, recursive: true);
+    }
+});
+
+Check("Malformed JSON becomes a failure without partial data", () =>
+{
+    string path = Path.Combine(Path.GetTempPath(), "assignment7-" + Guid.NewGuid().ToString("N") + ".json");
+    File.WriteAllText(path, "{ cars: [ this is not JSON");
+    try
+    {
+        Result<RentalData, RentalError> result = RentalDataLoader.Load(path);
+        AssertError(result, "DATA_FILE_MALFORMED");
+    }
+    finally
+    {
+        File.Delete(path);
+    }
+});
+
+Check("Result cases reject a missing payload", () =>
+{
+    bool successRejectedNull = false;
+    bool failureRejectedNull = false;
+    try
+    {
+        Result<string, RentalError>.Ok(null!);
+    }
+    catch (ArgumentNullException)
+    {
+        successRejectedNull = true;
+    }
+
+    try
+    {
+        Result<int, RentalError>.Fail(null!);
+    }
+    catch (ArgumentNullException)
+    {
+        failureRejectedNull = true;
+    }
+
+    Assert(successRejectedNull, "Success must not contain a missing required payload.");
+    Assert(failureRejectedNull, "Failure must not contain a missing error.");
+});
+
 Console.WriteLine($"\nTests: {passed} passed, {failed} failed.");
 Environment.ExitCode = failed == 0 ? 0 : 1;
 
@@ -228,6 +411,18 @@ static void Assert(bool condition, string message)
 {
     if (!condition)
         throw new Exception(message);
+}
+
+static RentalData SampleData() => new(SampleCars(), SampleCustomers(), SampleRentals());
+
+static void AssertError<T>(Result<T, RentalError> result, string expectedCode)
+{
+    Assert(result is Result<T, RentalError>.Failure,
+        $"Expected failure code {expectedCode}, but got success.");
+    RentalError error = ((Result<T, RentalError>.Failure)result).Error;
+    Assert(error.Code == expectedCode,
+        $"Expected error code {expectedCode}, got {error.Code}: {error.Message}");
+    Assert(!string.IsNullOrWhiteSpace(error.Message), "A domain error should explain the failure.");
 }
 
 static Car[] SampleCars() => new[]

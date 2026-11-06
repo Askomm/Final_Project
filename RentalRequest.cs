@@ -82,4 +82,45 @@ public static class RentalRequestFactory
         RentalPeriod period = new(startDate, endDate);
         return new RentalRequestCreationResult.Valid(new ValidatedRentalRequest(customer, period));
     }
+
+    internal static RentalRequestCreationResult CreateForCustomer(
+        Customer customer,
+        string? startText,
+        string? endText)
+    {
+        List<string> errors = new();
+
+        if (customer.Age < 18)
+            errors.Add("Customer must be at least 18 years old.");
+        if (!customer.HasDrivingLicense)
+            errors.Add("Customer must have a driving license.");
+
+        bool startIsValid = DateOnly.TryParseExact(
+            startText, "dd-MM-yyyy", CultureInfo.InvariantCulture,
+            DateTimeStyles.None, out DateOnly startDate);
+        bool endIsValid = DateOnly.TryParseExact(
+            endText, "dd-MM-yyyy", CultureInfo.InvariantCulture,
+            DateTimeStyles.None, out DateOnly endDate);
+
+        if (!startIsValid || !endIsValid)
+        {
+            errors.Add("Both dates are required and must use dd-MM-yyyy.");
+        }
+        else if (endDate <= startDate)
+        {
+            errors.Add("End date must be later than start date.");
+        }
+
+        if (errors.Count > 0)
+            return new RentalRequestCreationResult.Invalid(Array.AsReadOnly(errors.ToArray()));
+
+        if (!startIsValid || !endIsValid)
+        {
+            return new RentalRequestCreationResult.Invalid(
+                Array.AsReadOnly(new[] { "Rental request could not be validated." }));
+        }
+
+        RentalPeriod period = new(startDate, endDate);
+        return new RentalRequestCreationResult.Valid(new ValidatedRentalRequest(customer, period));
+    }
 }

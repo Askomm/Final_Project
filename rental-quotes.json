@@ -1,0 +1,32 @@
+{
+  "Standard": {
+    "CustomerId": 1,
+    "StartDate": "2026-10-25",
+    "EndDate": "2026-10-27",
+    "PolicyName": "Standard",
+    "Quotes": [
+      {
+        "CarId": 1,
+        "CarName": "Toyota Camry 40",
+        "DailyPrice": 15000,
+        "Days": 2,
+        "TotalPrice": 30000
+      }
+    ]
+  },
+  "Discounted": {
+    "CustomerId": 1,
+    "StartDate": "2026-10-25",
+    "EndDate": "2026-10-27",
+    "PolicyName": "10% discount",
+    "Quotes": [
+      {
+        "CarId": 1,
+        "CarName": "Toyota Camry 40",
+        "DailyPrice": 13500.00,
+        "Days": 2,
+        "TotalPrice": 27000.00
+      }
+    ]
+  }
+}

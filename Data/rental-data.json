@@ -1,0 +1,17 @@
+{
+  "cars": [
+    { "id": 1, "name": "Toyota Camry 40", "type": "Default", "color": "White", "transmission": "Manual" },
+    { "id": 2, "name": "Toyota Camry 70", "type": "Comfort", "color": "Black", "transmission": "Automat" },
+    { "id": 3, "name": "Audi A6", "type": "Comfort", "color": "Gray", "transmission": "Automat" },
+    { "id": 4, "name": "BMW 5 G30", "type": "Comfort", "color": "Black", "transmission": "Automat" },
+    { "id": 5, "name": "Mercedes S Class", "type": "Luxury", "color": "Black", "transmission": "Automat" }
+  ],
+  "customers": [
+    { "id": 1, "name": "Azamat", "age": 18, "hasDrivingLicense": true, "preferredTransmission": "Manual" },
+    { "id": 2, "name": "Egor", "age": 20, "hasDrivingLicense": true, "preferredTransmission": "Automat" },
+    { "id": 3, "name": "Sergei", "age": 25, "hasDrivingLicense": true, "preferredTransmission": "Manual" }
+  ],
+  "rentals": [
+    { "id": 1, "customerId": 3, "carId": 3, "startDate": "2026-10-13", "endDate": "2026-10-17" }
+  ]
+}

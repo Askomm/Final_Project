@@ -1,4 +1,4 @@
-# Assignment 6 — Handling Temporal Coupling
+# Assignment 7 - Exception Handling in Functional Programming
 
 ## Project information
 
@@ -7,20 +7,23 @@
 - **Group:** IT-2514
 - **Work format:** Individual work
 - **Target framework:** .NET 10 (`net10.0`)
+- **Test approach:** Included assertions-based console test runner; no xUnit or third-party test framework
 
-## 1. Project overview
+## 1. Project workflow
 
-The application reads cars, customers, and existing rentals from text files. A user enters a customer ID and a rental date range. The application validates the request, finds eligible and available cars, calculates prices using Standard and 10% Discount policies, displays the quotes, and saves the results to `rental-quotes.json`.
+The application loads cars, customers, and existing rentals together from `Data/rental-data.json`. The user enters a customer ID and a rental period. The workflow looks up the customer, validates the request, finds available cars, calculates Standard and 10% Discount quotes, displays the result, and saves a JSON output file.
 
-Assignment 6 refactors the request workflow so that the application does not rely on a caller remembering an unsafe sequence of operations. The active workflow creates a validated request first and proceeds only when the factory returns the `Valid` case.
+A normal demonstration uses:
 
-## 2. Requirements
+- Customer ID: `2`
+- Start date: `14-10-2026`
+- End date: `16-10-2026`
 
-Install the **.NET 10 SDK**. The projects target `net10.0`. No third-party test framework is required; the test project uses a small assertions-based test runner included in the repository.
+This sample period overlaps the existing rental for car 003, so cars 002 and 004 should be quoted. Each Standard quote is **50,000 KZT** for two days and each discounted quote is **45,000 KZT**. The dates are fixed sample data for a repeatable classroom demonstration; the application does not enforce a rule that rental dates must be in the future.
 
-## 3. Build, run, and test
+## 2. SDK and exact commands
 
-Extract the ZIP archive, open a terminal, and change to the project root—the folder containing `Code.sln` and `Code.csproj`. Run:
+Install the **.NET 10 SDK (10.0.x)**. Extract the ZIP, open a terminal, and run the following commands from the extracted project root, the folder containing `Code.sln` and `Code.csproj`:
 
 ```bash
 dotnet --version
@@ -30,150 +33,139 @@ dotnet run --project Code.Tests/Code.Tests.csproj
 dotnet run --project Code.csproj
 ```
 
-The test command prints each test group as `PASS` or `FAIL` and finishes with a summary. Its process exit code is non-zero if any test group fails. Run the application command separately after the tests; the application is interactive and asks for a customer ID, start date, and end date.
+The last command runs the interactive application. The test project is an executable test runner, so run it with `dotnet run` rather than `dotnet test`. It prints `PASS` or `FAIL` for each group and exits with a non-zero code if one or more groups fail.
 
-The date format is `dd-MM-yyyy`. The application writes `rental-quotes.json` to the current working directory. The `Data` text files are copied to the application output directory during the build.
 
-## 4. Input files and domain rules
+## 3. Input files and file-boundary demonstrations
 
-| File | Format |
-|---|---|
-| `Data/cars.txt` | `CarId|Name|Type|Color|Transmission` |
-| `Data/customers.txt` | `CustomerId|Name|Age|HasDrivingLicense|PreferredTransmission` |
-| `Data/rentals.txt` | `RentalId|CustomerId|CarId|StartDate|EndDate` |
+`Data/rental-data.json` is the normal input file. Its three required arrays are `cars`, `customers`, and `rentals`. Enum values use their names, such as `"Comfort"` and `"Automat"`; rental dates use ISO format `yyyy-MM-dd` in this JSON file.
 
-The application applies these rules:
-
-- IDs must be positive, and the requested customer must exist.
-- A customer must be at least 18 years old and have a driving licence. A customer must be at least 21 to rent a Luxury car.
-- Start and end dates must be present and use `dd-MM-yyyy`; the end date must be later than the start date.
-- A car must match the customer's preferred transmission and must not have an overlapping existing rental.
-- Daily base prices are Default = 15,000 KZT, Comfort = 20,000 KZT, and Luxury = 30,000 KZT. Automat transmission adds 5,000 KZT per day. The discounted policy applies 10% off the full daily price.
-- The rental duration is `EndDate - StartDate`; the return date is not counted as a rental day.
-
-## 5. Assignment 6 implementation
-
-### Task 1 — Identify the hidden dependency
-
-Before this refactor, a caller could manually invoke the pipeline stages with a raw customer and rental period:
-
-```csharp
-// Unsafe example for documentation only; it is not the active application workflow.
-var period = new RentalPeriod(startDate, endDate);
-var available = Pipeline.SelectAvailableCars(cars, rentals, customer, period);
-var quotes = Pipeline.CalculateQuotes(available, period, PricingPolicies.Standard);
-var result = Pipeline.CreateSummary(customer.Id, period, "Standard", quotes);
-```
-
-The caller had to remember to validate the request and execute the stages in the correct order. `RentalPeriod` itself does not enforce a valid date range. For example, `CalculateQuotes` rejects a period with zero or negative days, while skipping the availability-selection stage can allow an incorrectly prepared set of cars to be summarized.
-
-The unsafe example is documentation only. The active `Program.cs` workflow calls `RentalRequestFactory.Create` first and uses `Pipeline.RunValidated` only for a `Valid` result.
-
-### Task 2 — Create validated values with a factory
-
-`RentalRequestFactory.Create` in `RentalRequest.cs` checks the customer ID, customer existence, age and driving-licence eligibility, date format, and date ordering. It returns either:
-
-- `RentalRequestCreationResult.Valid`, which carries a `ValidatedRentalRequest`; or
-- `RentalRequestCreationResult.Invalid`, which carries one or more explanatory rejection reasons.
-
-`ValidatedRentalRequest` has read-only properties and an `internal` constructor. Code in another assembly cannot construct it directly using a public constructor; callers obtain the validated value through the factory. The application uses this factory result in its actual pricing workflow.
-
-### Task 3 — Model distinct cases
-
-`RentalRequestCreationResult` is a closed record hierarchy with two mutually exclusive cases:
-
-- **`Valid(ValidatedRentalRequest Request)`** — the request passed factory validation and includes the customer and validated rental period.
-- **`Invalid(IReadOnlyList<string> Reasons)`** — validation failed, so no validated request is returned; the reasons explain the failure.
-
-The base result type has a private constructor, restricting the hierarchy to its declared nested cases.
-
-### Task 4 — Handle cases with pattern matching
-
-`Program.cs` uses a `switch` to handle `Valid` and `Invalid` explicitly. For `Valid`, it calculates Standard and Discounted quotes through `Pipeline.RunValidated`. For `Invalid`, it prints each rejection reason and returns without calculating quotes. An unexpected result reaches a rejecting default branch rather than being treated as successful.
-
-### Task 5 — Make operations safe
-
-`Pipeline.RunValidated` requires a `ValidatedRentalRequest` instead of accepting a raw customer and an unchecked rental period as separate inputs. This makes the prerequisite visible in the method signature. If the factory rejects the request, the application does not enter the pricing workflow.
-
-The pipeline produces result values without modifying the source car, customer, or rental collections. Repeating a valid request is allowed: the same request and inputs produce the same quote results. Invalid requests are rejected without committing changes to those collections.
-
-For example, the following kind of call does **not** compile because the API expects a `ValidatedRentalRequest`, not a raw `Customer`:
-
-```csharp
-// Intentional compile-time illustration; do not add this as executable code.
-Pipeline.RunValidated(cars, rentals, customer, "Standard", PricingPolicies.Standard);
-```
-
-## 6. Test cases
-
-Run the assertion-based test runner with:
+The application also provides two command-line demonstrations. Run each from the project root:
 
 ```bash
-dotnet run --project Code.Tests/Code.Tests.csproj
+dotnet run --project Code.csproj -- --demo-missing-file
+dotnet run --project Code.csproj -- --demo-malformed-file
 ```
 
-The runner contains 10 test groups. Existing Assignment 5 coverage is retained, and the Assignment 6 cases exercise the new factory and validated workflow.
+Expected outcomes:
 
-| # | Test group | Expected result |
-|---:|---|---|
-| 1 | Normal workflow | Cars 002 and 004 are available for the sample two-day rental; each Standard quote is 50,000 KZT. |
-| 2 | Empty dataset | Empty input is accepted and produces no quotes. |
-| 3 | Age 18 boundary | A licensed 18-year-old can rent a non-Luxury car. |
-| 4 | Invalid and missing input | Missing rows/IDs, numeric enum values, underage customer data, and an invalid date range are rejected by parsing/validation. |
-| 5 | Two pricing policies | A sample two-day Comfort Automat rental totals 50,000 KZT under Standard and 45,000 KZT under the 10% Discount policy. |
-| 6 | Stages and input collections stay unchanged | The three pipeline stages return the expected data, and the original car and rental arrays remain unchanged. |
-| 7 | Factory success is used by the validated workflow | A valid factory result is passed to `RunValidated` and creates the expected quotes. |
-| 8 | Factory rejects missing customer and invalid dates | An unknown customer, non-positive customer ID, malformed dates, equal dates, and an underage customer are rejected with reasons. |
-| 9 | Pattern matching handles both result cases and eligibility rules | The `Valid` case carries a request; the `Invalid` case reports that a customer without a driving licence is rejected. |
-| 10 | One-day boundary, repeated operation, and state preservation | A one-day Comfort Automat quote is 25,000 KZT; repeating the same request returns equal quotes; failed validation leaves the source collections unchanged. |
-
-**Verification status:** The solution builds successfully, and all 10 automated test groups pass. Verification was performed using the .NET 10 SDK.
-
-- Build: `dotnet build Code.sln` — successful.
-- Tests: `dotnet run --project Code.Tests/Code.Tests.csproj` — 10 passed, 0 failed.
-
-## 7. Sample demonstrations
-
-### Successful request
-
-Use these values when the program prompts you:
-
-- Customer ID: `2`
-- Start date: `20-10-2026`
-- End date: `22-10-2026`
-
-Customer 2 is licensed and eligible to rent Comfort Automat cars. With the sample data, cars 002 and 004 should be available. Each quote should total **50,000 KZT** under Standard and **45,000 KZT** under the 10% Discount policy. The program should save both results to `rental-quotes.json`.
-
-### Invalid customer — missing prerequisite
-
-Enter customer ID `999` and otherwise correctly formatted dates. The factory should return `Invalid` because the customer does not exist. The program displays the reason and does not calculate quotes.
-
-### Invalid date sequence
-
-Enter customer ID `2` and use the same date for the start and end date, for example `20-10-2026` and `20-10-2026`. The factory should reject the request because the end date must be later than the start date.
-
-### Repeated operation
-
-The automated test `One-day boundary, repeated operation, and state preservation` runs `Pipeline.RunValidated` twice with the same validated request and asserts that the quotes match and the original collections remain unchanged.
-
-## 8. Requirement-to-code map
-
-| Assignment requirement | Implementation |
+| Demonstration | Expected outcome |
 |---|---|
-| Unsafe before example and explanation of hidden order | This README, section 5 — Task 1 |
-| Factory validation and access restrictions | `RentalRequest.cs` — `RentalRequestFactory.Create`, `ValidatedRentalRequest` |
-| Distinct valid and invalid cases | `RentalRequest.cs` — `RentalRequestCreationResult.Valid` and `.Invalid` |
-| Pattern matching in the active workflow | `Program.cs` — switch over the factory result |
-| Safe workflow using explicit prerequisites | `Pipeline.cs` — `Pipeline.RunValidated`; called by `Program.cs` |
-| Domain pricing and selection logic | `Pipeline.cs` — `SelectAvailableCars`, `CalculateQuotes`, `CreateSummary`, `PricingPolicies` |
-| Assertions-based automated checks | `Code.Tests/Program.cs` |
-| Input parsing and parsing validation | `TryParse.cs` |
-| Sample input data | `Data/cars.txt`, `Data/customers.txt`, `Data/rentals.txt` |
+| Normal data file | `RentalDataLoader.Load` returns `Success` with all three collections. |
+| `--demo-missing-file` | Prints `DATA_FILE_MISSING` and reports the missing path. No quote workflow starts. |
+| `--demo-malformed-file` | Prints `DATA_FILE_MALFORMED` and reports that JSON parsing failed. No quote workflow starts. |
 
-## 9. Contribution
+The failure demonstrations intentionally exit with a non-zero process code, because they show detected failures rather than successful quote generation. `Data/malformed.json` is a small deliberately invalid JSON example used only by that demonstration.
 
-**Azamat Kuanyshpayev — IT-2514 (individual work).** For Assignment 6, I implemented the validated rental-request factory and its `Valid`/`Invalid` result model, integrated the validated path into the active console application, retained earlier pipeline tests, added Assignment 6 assertion-based test coverage, and documented the unsafe and safe workflows.
+The application writes successful quotes to `rental-quotes.json` in the current working directory. It writes to a temporary file first and replaces the final file only after the temporary write completes.
 
-## 10. Submission contents
+## 4. Domain rules and expected outcomes
 
-The ZIP archive includes the C# source files, solution and project files, `Code.Tests`, this README, and the sample files under `Data/`. Generated `bin` and `obj` directories are excluded. Build and test the project after extracting the archive, using the commands in Section 3.
+- IDs must be positive integers, and the customer must exist.
+- A customer must be at least 18 years old and have a driving license. A customer must be at least 21 to rent a Luxury car.
+- Rental dates entered in the console must use `dd-MM-yyyy`; the end date must be later than the start date.
+- A car must match the customer's preferred transmission and must not have an overlapping rental.
+- Daily base prices are Default = 15,000 KZT, Comfort = 20,000 KZT, and Luxury = 30,000 KZT. Automat transmission adds 5,000 KZT per day. The discounted policy applies 10% off.
+
+Expected domain failures are returned as explicit `Result.Failure` values, with a code and a useful message:
+
+| Code | Meaning / expected message |
+|---|---|
+| `CUSTOMER_ID_INVALID` | The entered customer ID is missing, malformed, or not positive. |
+| `CUSTOMER_NOT_FOUND` | No customer with the requested ID exists. |
+| `CUSTOMER_NOT_ELIGIBLE` | The customer is under 18 or does not have a driving license. |
+| `RENTAL_PERIOD_INVALID` | The end date is not later than the start date. |
+| `RENTAL_DATES_REQUIRED_OR_FORMAT` | One or both entered dates are missing or not in `dd-MM-yyyy` format. |
+| `NO_CARS_AVAILABLE` | The request is valid, but no car matches the rules for the selected period. |
+
+Operational file errors use separate codes, including `DATA_FILE_MISSING`, `DATA_FILE_MALFORMED`, `DATA_FILE_ACCESS_DENIED`, and `DATA_FILE_READ_FAILED`.
+
+## 5. Assignment 7 implementation map
+
+### Task 1 - Explicit domain outcomes
+
+- `Result.cs` defines `Result<T, E>` with exactly two cases: `Success(Value)` and `Failure(Error)`. Each case rejects a null required payload, and callers can only construct one case at a time through `Ok` or `Fail`.
+- `RentalWorkflow.cs` returns meaningful failures for invalid customer IDs, missing customers, ineligible customers, invalid rental periods, and requests with no available cars. These expected business failures do not use exceptions as normal control flow.
+- `RentalError` in `RentalDataLoader.cs` carries an error code and message.
+
+### Task 2 - Explicit missing values
+
+- `Option<T>` in `Result.cs` defines `Some(Value)` and `None`.
+- `RentalWorkflow.FindCustomer` returns `Some(customer)` or `None`; absence is not represented by a fabricated customer or `default(T)`.
+- The main chain converts `None` into `CUSTOMER_NOT_FOUND` with `Option.ToResult`.
+- A customer with `HasDrivingLicense == false` is still a present customer (`Some`); the `false` value triggers an eligibility failure rather than being treated as missing.
+
+### Task 3 - Map and Bind composition
+
+- `Result<T, E>.Map` transforms the successful payload and preserves a failure unchanged.
+- `Result<T, E>.Bind` calls the next operation only after success and propagates a failure unchanged.
+- The active chain in `RentalWorkflow.SearchQuotes` parses the ID, performs the optional lookup, converts the Assignment 6 factory outcome into a `Result`, finds available cars, and maps those cars into the Standard and Discounted quote comparison.
+- Tests verify successful `Map` and `Bind` calls and use a counter to prove that neither supplied function runs after a failure.
+- `Program.cs` handles the final workflow result explicitly with pattern matching.
+
+### Task 4 - Exception handling at the file boundary
+
+- `RentalDataLoader.Load` reads JSON outside the pure pricing and selection operations.
+- Missing files/directories, malformed JSON, access denial, and other I/O errors become clear `Result.Failure` values with the input path in the message.
+- The loader parses and validates the whole document in local variables, and returns `RentalData` only after all three arrays pass structural checks. A malformed file does not partially replace an existing dataset.
+- `Program.cs` handles a load failure at the application boundary, prints the error, and does not begin the quote workflow.
+
+### Task 5 - Integration
+
+- Normal workflow: load sample JSON, submit a valid customer and date range, calculate both pricing policies, display quotes, and write the JSON output.
+- Domain failure paths: invalid ID, missing customer, ineligible customer, invalid rental period, and no available cars.
+- Lookup paths: customer present and customer absent; a stored `false` driving-license value remains a present customer.
+- File failure paths: `--demo-missing-file` and `--demo-malformed-file`.
+- The existing `Pipeline` stages and `RentalRequestFactory` from Assignment 6 remain in the same project and are used by the Result-based workflow.
+
+### Different meanings of the result models
+
+`RentalRequestCreationResult.Valid/Invalid` from Assignment 6 describes whether the factory could create a validated rental request. The new generic `Result<T, E>` composes operations throughout Assignment 7 and can represent validation errors, missing lookup outcomes after conversion, business-rule rejections such as `NO_CARS_AVAILABLE`, and file-boundary errors. A valid request does not guarantee a car can be quoted; the availability step can still return a separate workflow failure.
+
+## 6. Automated test cases
+
+The assertions-based runner in `Code.Tests/Program.cs` contains 20 groups:
+
+| # | Test group | Main expected check |
+|---:|---|---|
+| 1 | Normal workflow | Cars 002 and 004; correct Standard totals. |
+| 2 | Empty dataset | Empty input creates no quotes. |
+| 3 | Age 18 boundary | An eligible licensed 18-year-old can rent a non-Luxury car. |
+| 4 | Invalid and missing input | Missing rows/IDs, numeric enum values, underage data, and invalid dates are rejected. |
+| 5 | Two pricing policies | Standard and discounted amounts are correct. |
+| 6 | Stages and input collections stay unchanged | Earlier pipeline stages preserve source collections. |
+| 7 | Factory success is used by the validated workflow | A valid Assignment 6 factory outcome proceeds through the pipeline. |
+| 8 | Factory rejects missing customer and invalid dates | The factory returns useful reasons for invalid requests. |
+| 9 | Pattern matching handles both result cases and eligibility rules | Both factory cases are handled explicitly. |
+| 10 | One-day boundary, repeated operation, and state preservation | Repeated successful calls are stable; invalid requests do not mutate input. |
+| 11 | Assignment 7 integrated Result workflow succeeds | The result chain returns the expected Standard and Discounted quotes. |
+| 12 | Assignment 7 reports distinct domain failures | Invalid ID, missing customer, invalid period, and no available cars return distinct codes. |
+| 13 | Option lookup distinguishes present and absent customers | Some/None work, and `false` remains a real license value. |
+| 14 | Map transforms a successful value | The function runs and returns the expected transformed value. |
+| 15 | Bind continues with the next Result operation | The next operation receives the prior value; its failure is retained. |
+| 16 | Map and Bind propagate failure without invoking functions | Both preserve the error and a counter stays at zero. |
+| 17 | Valid JSON file loads as one complete dataset | Cars, customers, and rentals load together. |
+| 18 | Missing input file becomes an explicit failure | A controlled temporary path returns `DATA_FILE_MISSING`. |
+| 19 | Malformed JSON becomes a failure without partial data | Invalid JSON returns `DATA_FILE_MALFORMED`; the temporary file is cleaned up. |
+| 20 | Result cases reject a missing payload | Success cannot hold a null payload and Failure cannot hold a null error. |
+
+The file-failure tests use unique temporary paths and clean up after themselves. They do not depend on a file being missing or malformed on the user's computer.
+
+## 7. Requirement-to-file map
+
+| Requirement | File / methods |
+|---|---|
+| Result cases, Map, Bind, Option | `Result.cs` |
+| Domain lookup, validation composition, quote workflow | `RentalWorkflow.cs` |
+| JSON loading and boundary exception conversion | `RentalDataLoader.cs` |
+| Existing selection, pricing, summary pipeline | `Pipeline.cs` |
+| Assignment 6 validation factory and validated request | `RentalRequest.cs` |
+| Console workflow and final pattern matching | `Program.cs` |
+| Automated assertions | `Code.Tests/Program.cs` |
+| Normal and malformed JSON samples | `Data/rental-data.json`, `Data/malformed.json` |
+
+## 8. Contribution
+
+**Azamat Kuanyshpayev - IT-2514 (individual work).** For Assignment 7, I added the generic `Result` and `Option` models, composed the car-rental workflow with `Map` and `Bind`, converted Assignment 6 factory results into explicit workflow outcomes, added JSON-boundary error handling, supplied missing/malformed-file demonstrations, expanded the assertion-based tests, and documented the outcomes.
+
+

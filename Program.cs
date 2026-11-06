@@ -1,105 +1,104 @@
 using System.Text.Json;
 using Code;
 
-Console.WriteLine("Car Rental System - Assignment 6");
-Console.WriteLine("Find available cars and compare two prices.\n");
+Console.WriteLine("Car Rental System - Assignment 7");
+Console.WriteLine("Result, Option, Map, Bind, and safe JSON loading\n");
 
 string dataFolder = Path.Combine(AppContext.BaseDirectory, "Data");
-string carsFile = Path.Combine(dataFolder, "cars.txt");
-string customersFile = Path.Combine(dataFolder, "customers.txt");
-string rentalsFile = Path.Combine(dataFolder, "rentals.txt");
-
-if (!File.Exists(carsFile) || !File.Exists(customersFile) || !File.Exists(rentalsFile))
+string dataFile = args.FirstOrDefault() switch
 {
-    Console.WriteLine("Input data file is missing. Check the Data folder.");
-    return;
+    "--demo-missing-file" => Path.Combine(dataFolder, "file-that-does-not-exist.json"),
+    "--demo-malformed-file" => Path.Combine(dataFolder, "malformed.json"),
+    _ => Path.Combine(dataFolder, "rental-data.json")
+};
+
+Result<RentalData, RentalError> loadResult = RentalDataLoader.Load(dataFile);
+RentalData data;
+switch (loadResult)
+{
+    case Result<RentalData, RentalError>.Success success:
+        data = success.Value;
+        Console.WriteLine($"Loaded {data.Cars.Count} cars, {data.Customers.Count} customers, " +
+                          $"and {data.Rentals.Count} existing rentals from JSON.\n");
+        break;
+
+    case Result<RentalData, RentalError>.Failure failure:
+        PrintError(failure.Error);
+        Environment.ExitCode = 1;
+        return;
+
+    default:
+        Console.WriteLine("Unexpected data-loading result.");
+        Environment.ExitCode = 1;
+        return;
 }
 
-List<Car> cars = TryParse.ParseCars(File.ReadAllLines(carsFile), out List<string> carErrors);
-List<Customer> customers = TryParse.ParseCustomers(File.ReadAllLines(customersFile), out List<string> customerErrors);
-List<Rental> rentals = TryParse.ParseRentals(File.ReadAllLines(rentalsFile), out List<string> rentalErrors);
-
-PrintErrors(carErrors);
-PrintErrors(customerErrors);
-PrintErrors(rentalErrors);
-Console.WriteLine($"Loaded {cars.Count} cars, {customers.Count} customers and {rentals.Count} rentals.\n");
-
+Console.WriteLine("For the file-boundary demonstrations, run with --demo-missing-file or --demo-malformed-file.");
 Console.Write("Customer ID: ");
-if (!TryParse.TryParsePositiveId(Console.ReadLine(), out int customerId, out string idError))
-{
-    Console.WriteLine(idError);
-    return;
-}
-
+string? customerIdText = Console.ReadLine();
 Console.Write("Start date (dd-MM-yyyy): ");
 string? startText = Console.ReadLine();
 Console.Write("End date (dd-MM-yyyy): ");
 string? endText = Console.ReadLine();
 
-RentalRequestCreationResult creation = RentalRequestFactory.Create(
-    customers, customerId, startText, endText);
+Result<RentalQuoteComparison, RentalError> workflowResult =
+    RentalWorkflow.SearchQuotes(data, customerIdText, startText, endText);
 
-RentalSearchResult standard;
-RentalSearchResult discounted;
-
-switch (creation)
+switch (workflowResult)
 {
-    case RentalRequestCreationResult.Valid valid:
-    {       
-        standard = Pipeline.RunValidated(
-            cars, rentals, valid.Request, "Standard", PricingPolicies.Standard);
-        discounted = Pipeline.RunValidated(
-            cars, rentals, valid.Request, "10% discount", PricingPolicies.Discounted);
-
-        PrintResult(standard);
-        PrintResult(discounted);
+    case Result<RentalQuoteComparison, RentalError>.Success success:
+        PrintResult(success.Value.Standard);
+        PrintResult(success.Value.Discounted);
+        SaveResults(success.Value);
         break;
-    }
-    case RentalRequestCreationResult.Invalid invalid:
-        foreach (string reason in invalid.Reasons)
-            Console.WriteLine($"Rental request rejected: {reason}");
-        return;
+
+    case Result<RentalQuoteComparison, RentalError>.Failure failure:
+        PrintError(failure.Error);
+        Environment.ExitCode = 1;
+        break;
+
     default:
-        throw new InvalidOperationException("Unknown rental request result.");
+        Console.WriteLine("Unexpected workflow result.");
+        Environment.ExitCode = 1;
+        break;
 }
 
-string outputFile = Path.Combine(Environment.CurrentDirectory, "rental-quotes.json");
-try
-{
-    string json = JsonSerializer.Serialize(
-        new { Standard = standard, Discounted = discounted },
-        new JsonSerializerOptions { WriteIndented = true });
-    File.WriteAllText(outputFile, json);
-    Console.WriteLine($"\nResults saved to {outputFile}");
-}
-catch (IOException)
-{
-    Console.WriteLine("Could not write rental-quotes.json.");
-}
-catch (UnauthorizedAccessException)
-{
-    Console.WriteLine("No permission to write rental-quotes.json.");
-}
-
-static void PrintErrors(List<string> errors)
-{
-    foreach (string error in errors)
-        Console.WriteLine($"Rejected input: {error}");
-}
+static void PrintError(RentalError error) =>
+    Console.WriteLine($"Operation failed [{error.Code}]: {error.Message}");
 
 static void PrintResult(RentalSearchResult result)
 {
     Console.WriteLine($"\n{result.PolicyName} quotes:");
-    if (result.Quotes.Count == 0)
-    {
-        Console.WriteLine("No cars match the request.");
-        return;
-    }
-
     foreach (CarQuote quote in result.Quotes)
     {
         Console.WriteLine(
             $"Car {quote.CarId:D3} - {quote.CarName}: {quote.DailyPrice:N0} KZT/day, " +
             $"total {quote.TotalPrice:N0} KZT for {quote.Days} days");
+    }
+}
+
+static void SaveResults(RentalQuoteComparison comparison)
+{
+    string outputFile = Path.Combine(Environment.CurrentDirectory, "rental-quotes.json");
+    string temporaryFile = outputFile + ".tmp";
+
+    try
+    {
+        string json = JsonSerializer.Serialize(
+            new { comparison.Standard, comparison.Discounted },
+            new JsonSerializerOptions { WriteIndented = true });
+
+        
+        File.WriteAllText(temporaryFile, json);
+        File.Move(temporaryFile, outputFile, overwrite: true);
+        Console.WriteLine($"\nResults saved to {outputFile}");
+    }
+    catch (UnauthorizedAccessException)
+    {
+        Console.WriteLine($"Could not save results: no permission to write '{outputFile}'.");
+    }
+    catch (IOException exception)
+    {
+        Console.WriteLine($"Could not save results to '{outputFile}': {exception.Message}");
     }
 }
