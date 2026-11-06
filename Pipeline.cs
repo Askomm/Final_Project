@@ -86,7 +86,8 @@ public static class Pipeline
     {
         CarQuote[] orderedQuotes = quotes
             .OrderBy(quote => quote.TotalPrice)
-            .ThenBy(quote => quote.CarName)
+            .ThenBy(quote => quote.CarName, StringComparer.Ordinal)
+            .ThenBy(quote => quote.CarId)
             .ToArray();
 
         return new RentalSearchResult(

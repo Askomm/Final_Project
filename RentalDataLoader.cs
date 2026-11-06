@@ -20,6 +20,8 @@ public static class RentalDataLoader
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+        // Missing value-type fields must not silently become valid zero/false values.
+        RespectRequiredConstructorParameters = true,
         Converters = { new JsonStringEnumConverter() }
     };
 
@@ -64,6 +66,14 @@ public static class RentalDataLoader
             {
                 return Malformed(path, "The rentals array contains an invalid rental record.");
             }
+
+            if (document.Cars.Select(c => c.Id).Distinct().Count() != document.Cars.Count ||
+                document.Customers.Select(c => c.Id).Distinct().Count() != document.Customers.Count ||
+                document.Rentals.Select(r => r.Id).Distinct().Count() != document.Rentals.Count ||
+                document.Customers.Any(c => c.Age < 0) ||
+                document.Rentals.Any(r => !document.Cars.Any(c => c.Id == r.CarId) ||
+                    !document.Customers.Any(c => c.Id == r.CustomerId)))
+                return Malformed(path, "Duplicate IDs, invalid age, or unknown rental reference.");
 
             RentalData data = new(
                 Array.AsReadOnly(document.Cars.ToArray()),

@@ -1,104 +1,45 @@
-using System.Text.Json;
 using Code;
 
-Console.WriteLine("Car Rental System - Assignment 7");
-Console.WriteLine("Result, Option, Map, Bind, and safe JSON loading\n");
-
-string dataFolder = Path.Combine(AppContext.BaseDirectory, "Data");
-string dataFile = args.FirstOrDefault() switch
-{
-    "--demo-missing-file" => Path.Combine(dataFolder, "file-that-does-not-exist.json"),
-    "--demo-malformed-file" => Path.Combine(dataFolder, "malformed.json"),
-    _ => Path.Combine(dataFolder, "rental-data.json")
-};
-
-Result<RentalData, RentalError> loadResult = RentalDataLoader.Load(dataFile);
-RentalData data;
-switch (loadResult)
-{
-    case Result<RentalData, RentalError>.Success success:
-        data = success.Value;
-        Console.WriteLine($"Loaded {data.Cars.Count} cars, {data.Customers.Count} customers, " +
-                          $"and {data.Rentals.Count} existing rentals from JSON.\n");
-        break;
-
-    case Result<RentalData, RentalError>.Failure failure:
-        PrintError(failure.Error);
-        Environment.ExitCode = 1;
-        return;
-
-    default:
-        Console.WriteLine("Unexpected data-loading result.");
-        Environment.ExitCode = 1;
-        return;
-}
-
-Console.WriteLine("For the file-boundary demonstrations, run with --demo-missing-file or --demo-malformed-file.");
+Console.WriteLine("Car Rental System - Assignment 8");
+string folder = Path.Combine(AppContext.BaseDirectory, "Data");
+string file = args.Contains("--demo-missing-file") ? "missing.json" :
+    args.Contains("--demo-malformed-file") ? "malformed.json" : "rental-data.json";
+var loaded = RentalDataLoader.Load(Path.Combine(folder, file));
+if (loaded is Result<RentalData, RentalError>.Failure loadError)
+{ Fail(loadError.Error); return; }
+var data = ((Result<RentalData, RentalError>.Success)loaded).Value;
 Console.Write("Customer ID: ");
-string? customerIdText = Console.ReadLine();
-Console.Write("Start date (dd-MM-yyyy): ");
-string? startText = Console.ReadLine();
-Console.Write("End date (dd-MM-yyyy): ");
-string? endText = Console.ReadLine();
+string customer = Console.ReadLine() ?? "";
+Console.Write("Start (dd-MM-yyyy): ");
+string start = Console.ReadLine() ?? "";
+Console.Write("End (dd-MM-yyyy): ");
+string end = Console.ReadLine() ?? "";
+var standard = ReportQueries.CreatePrice(0m);
+var discounted = ReportQueries.CreatePrice(0.10m);
+var native = args.Contains("--demo-native-failure")
+    ? new NativeFee(_ => throw new DllNotFoundException("Controlled failure demonstration."))
+    : new NativeFee();
+var outcome = ReportWorkflow.Run(data, customer, start, end, 60000m, standard, discounted, native);
+if (outcome is Result<ReportBundle, RentalError>.Failure error)
+{ Fail(error.Error); return; }
+var reports = ((Result<ReportBundle, RentalError>.Success)outcome).Value;
+Console.WriteLine($"Customer {customer}; {start} to {end}; budget 60,000 KZT.");
+PrintOffers("Affordable rental offers - standard", reports.Standard);
+PrintOffers("Affordable rental offers - 10% discount", reports.Discounted);
+Console.WriteLine("\nFleet daily revenue potential (all cars, before service fees):");
+foreach (var row in reports.Fleet)
+    Console.WriteLine($"{row.Type}: {row.Cars} cars; {row.DailyPotential:0.00} KZT/day");
+var saved = ReportExporter.Save(Path.Combine(Environment.CurrentDirectory, "rental-reports.json"), reports);
+if (saved is Result<string, RentalError>.Success success) Console.WriteLine("\nSaved " + success.Value);
+else Fail(((Result<string, RentalError>.Failure)saved).Error);
 
-Result<RentalQuoteComparison, RentalError> workflowResult =
-    RentalWorkflow.SearchQuotes(data, customerIdText, startText, endText);
-
-switch (workflowResult)
+static void Fail(RentalError error)
+{ Console.WriteLine($"Operation failed [{error.Code}]: {error.Message}"); Environment.ExitCode = 1; }
+static void PrintOffers(string title, IReadOnlyList<Offer> offers)
 {
-    case Result<RentalQuoteComparison, RentalError>.Success success:
-        PrintResult(success.Value.Standard);
-        PrintResult(success.Value.Discounted);
-        SaveResults(success.Value);
-        break;
-
-    case Result<RentalQuoteComparison, RentalError>.Failure failure:
-        PrintError(failure.Error);
-        Environment.ExitCode = 1;
-        break;
-
-    default:
-        Console.WriteLine("Unexpected workflow result.");
-        Environment.ExitCode = 1;
-        break;
-}
-
-static void PrintError(RentalError error) =>
-    Console.WriteLine($"Operation failed [{error.Code}]: {error.Message}");
-
-static void PrintResult(RentalSearchResult result)
-{
-    Console.WriteLine($"\n{result.PolicyName} quotes:");
-    foreach (CarQuote quote in result.Quotes)
-    {
-        Console.WriteLine(
-            $"Car {quote.CarId:D3} - {quote.CarName}: {quote.DailyPrice:N0} KZT/day, " +
-            $"total {quote.TotalPrice:N0} KZT for {quote.Days} days");
-    }
-}
-
-static void SaveResults(RentalQuoteComparison comparison)
-{
-    string outputFile = Path.Combine(Environment.CurrentDirectory, "rental-quotes.json");
-    string temporaryFile = outputFile + ".tmp";
-
-    try
-    {
-        string json = JsonSerializer.Serialize(
-            new { comparison.Standard, comparison.Discounted },
-            new JsonSerializerOptions { WriteIndented = true });
-
-        
-        File.WriteAllText(temporaryFile, json);
-        File.Move(temporaryFile, outputFile, overwrite: true);
-        Console.WriteLine($"\nResults saved to {outputFile}");
-    }
-    catch (UnauthorizedAccessException)
-    {
-        Console.WriteLine($"Could not save results: no permission to write '{outputFile}'.");
-    }
-    catch (IOException exception)
-    {
-        Console.WriteLine($"Could not save results to '{outputFile}': {exception.Message}");
-    }
+    Console.WriteLine("\n" + title);
+    if (offers.Count == 0) Console.WriteLine("No offers within the budget.");
+    foreach (var offer in offers)
+        Console.WriteLine($"{offer.CarId:D3} {offer.CarName}: {offer.DailyPrice:0.00} KZT/day x {offer.Days}" +
+            $" + {offer.ServiceFee} KZT native service fee = {offer.TotalPrice:0.00} KZT");
 }
