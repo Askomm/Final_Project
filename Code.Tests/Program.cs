@@ -82,6 +82,130 @@ Check("Stages and input collections stay unchanged", () =>
     Assert(rentals.SequenceEqual(originalRentals), "The original rental array changed.");
 });
 
+Check("Factory success is used by the validated workflow", () =>
+{
+    RentalRequestCreationResult creation = RentalRequestFactory.Create(
+        SampleCustomers(), 2, "14-10-2026", "16-10-2026");
+
+    RentalSearchResult result = creation switch
+    {
+        RentalRequestCreationResult.Valid valid => Pipeline.RunValidated(
+            SampleCars(), SampleRentals(), valid.Request, "Standard", PricingPolicies.Standard),
+        RentalRequestCreationResult.Invalid invalid => throw new Exception(
+            "Expected a valid request: " + string.Join("; ", invalid.Reasons)),
+        _ => throw new Exception("Unexpected rental request result.")
+    };
+
+    Assert(result.CustomerId == 2, "The validated customer should be used by the workflow.");
+    Assert(result.Quotes.Count == 2, "The safe workflow should produce two quotes.");
+    Assert(result.Quotes.All(quote => quote.TotalPrice == 50000m),
+        "The safe workflow should calculate the expected totals.");
+});
+
+Check("Factory rejects missing customer and invalid dates", () =>
+{
+    RentalRequestCreationResult missingCustomer = RentalRequestFactory.Create(
+        SampleCustomers(), 999, "14-10-2026", "16-10-2026");
+    Assert(missingCustomer is RentalRequestCreationResult.Invalid,
+        "An unknown customer must not produce a validated request.");
+    Assert(((RentalRequestCreationResult.Invalid)missingCustomer).Reasons.Any(
+            reason => reason.Contains("not found", StringComparison.OrdinalIgnoreCase)),
+        "The missing-customer result should explain the reason.");
+
+    RentalRequestCreationResult invalidDates = RentalRequestFactory.Create(
+        SampleCustomers(), 2, "14-10-2026", "14-10-2026");
+    Assert(invalidDates is RentalRequestCreationResult.Invalid,
+        "A period with equal start and end dates must be rejected.");
+    Assert(((RentalRequestCreationResult.Invalid)invalidDates).Reasons.Any(
+            reason => reason.Contains("later", StringComparison.OrdinalIgnoreCase)),
+        "The invalid-date result should explain the date rule.");
+
+    RentalRequestCreationResult invalidId = RentalRequestFactory.Create(
+        SampleCustomers(), 0, "14-10-2026", "16-10-2026");
+    Assert(invalidId is RentalRequestCreationResult.Invalid &&
+           ((RentalRequestCreationResult.Invalid)invalidId).Reasons.Any(
+               reason => reason.Contains("positive", StringComparison.OrdinalIgnoreCase)),
+        "A non-positive customer ID must be rejected with a reason.");
+
+    RentalRequestCreationResult badFormat = RentalRequestFactory.Create(
+        SampleCustomers(), 2, "2026/10/14", "2026/10/16");
+    Assert(badFormat is RentalRequestCreationResult.Invalid &&
+           ((RentalRequestCreationResult.Invalid)badFormat).Reasons.Any(
+               reason => reason.Contains("dd-MM-yyyy", StringComparison.OrdinalIgnoreCase)),
+        "Dates outside the required format must be rejected with a reason.");
+
+    Customer underage = new(7, "Taylor", 17, true, TransmissionType.Manual);
+    RentalRequestCreationResult underageResult = RentalRequestFactory.Create(
+        new[] { underage }, 7, "14-10-2026", "16-10-2026");
+    Assert(underageResult is RentalRequestCreationResult.Invalid &&
+           ((RentalRequestCreationResult.Invalid)underageResult).Reasons.Any(
+               reason => reason.Contains("18", StringComparison.OrdinalIgnoreCase)),
+        "A customer under 18 must be rejected with a reason.");
+});
+
+Check("Pattern matching handles both result cases and eligibility rules", () =>
+{
+    RentalRequestCreationResult valid = RentalRequestFactory.Create(
+        SampleCustomers(), 2, "14-10-2026", "16-10-2026");
+    string validCase = valid switch
+    {
+        RentalRequestCreationResult.Valid value => $"Valid customer {value.Request.Customer.Id}",
+        RentalRequestCreationResult.Invalid => "Invalid",
+        _ => throw new Exception("Unknown case.")
+    };
+    Assert(validCase == "Valid customer 2", "The valid case should carry the request payload.");
+
+    Customer noLicense = new(8, "Sam", 25, false, TransmissionType.Automat);
+    RentalRequestCreationResult invalid = RentalRequestFactory.Create(
+        new[] { noLicense }, 8, "14-10-2026", "16-10-2026");
+    string invalidCase = invalid switch
+    {
+        RentalRequestCreationResult.Valid => "Valid",
+        RentalRequestCreationResult.Invalid value => string.Join("; ", value.Reasons),
+        _ => throw new Exception("Unknown case.")
+    };
+    Assert(invalidCase.Contains("driving license", StringComparison.OrdinalIgnoreCase),
+        "A customer without a license must be rejected with a reason.");
+});
+
+Check("One-day boundary, repeated operation, and state preservation", () =>
+{
+    Car[] cars = SampleCars();
+    Rental[] rentals = SampleRentals();
+    Customer[] customers = SampleCustomers();
+    Car[] originalCars = cars.ToArray();
+    Rental[] originalRentals = rentals.ToArray();
+    Customer[] originalCustomers = customers.ToArray();
+
+    RentalRequestCreationResult creation = RentalRequestFactory.Create(
+        customers, 2, "14-10-2026", "15-10-2026");
+    Assert(creation is RentalRequestCreationResult.Valid,
+        "A one-day rental period must be valid.");
+    ValidatedRentalRequest request = ((RentalRequestCreationResult.Valid)creation).Request;
+
+    RentalSearchResult first = Pipeline.RunValidated(
+        cars, rentals, request, "Standard", PricingPolicies.Standard);
+    RentalSearchResult second = Pipeline.RunValidated(
+        cars, rentals, request, "Standard", PricingPolicies.Standard);
+
+    Assert(first.Quotes.All(quote => quote.Days == 1),
+        "The exact next-day boundary should produce one rental day.");
+    Assert(first.Quotes.All(quote => quote.TotalPrice == 25000m),
+        "A one-day Comfort Automat rental should cost 25,000 KZT.");
+    Assert(first.Quotes.SequenceEqual(second.Quotes),
+        "Repeating the same request should return the same quotes.");
+    Assert(cars.SequenceEqual(originalCars), "Cars must remain unchanged after repeated operations.");
+    Assert(rentals.SequenceEqual(originalRentals), "Rentals must remain unchanged after repeated operations.");
+
+    RentalRequestCreationResult rejected = RentalRequestFactory.Create(
+        customers, 2, "14-10-2026", "14-10-2026");
+    Assert(rejected is RentalRequestCreationResult.Invalid,
+        "A failed request must not create a validated state.");
+    Assert(cars.SequenceEqual(originalCars) && rentals.SequenceEqual(originalRentals) &&
+           customers.SequenceEqual(originalCustomers),
+        "A rejected request must leave the original collections unchanged.");
+});
+
 Console.WriteLine($"\nTests: {passed} passed, {failed} failed.");
 Environment.ExitCode = failed == 0 ? 0 : 1;
 
@@ -118,6 +242,12 @@ static Car[] SampleCars() => new[]
 static Rental[] SampleRentals() => new[]
 {
     new Rental(1, 3, 3, new DateOnly(2026, 10, 13), new DateOnly(2026, 10, 17))
+};
+
+static Customer[] SampleCustomers() => new[]
+{
+    new Customer(1, "Alex", 18, true, TransmissionType.Manual),
+    Customer20()
 };
 
 static Customer Customer20() => new(2, "Egor", 20, true, TransmissionType.Automat);

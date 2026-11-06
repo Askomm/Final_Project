@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Code;
 
-Console.WriteLine("Car Rental System - Assignment 5");
+Console.WriteLine("Car Rental System - Assignment 6");
 Console.WriteLine("Find available cars and compare two prices.\n");
 
 string dataFolder = Path.Combine(AppContext.BaseDirectory, "Data");
@@ -31,31 +31,37 @@ if (!TryParse.TryParsePositiveId(Console.ReadLine(), out int customerId, out str
     return;
 }
 
-Customer? customer = customers.FirstOrDefault(item => item.Id == customerId);
-if (customer is null)
-{
-    Console.WriteLine("Customer was not found.");
-    return;
-}
-
 Console.Write("Start date (dd-MM-yyyy): ");
 string? startText = Console.ReadLine();
 Console.Write("End date (dd-MM-yyyy): ");
 string? endText = Console.ReadLine();
 
-if (!TryParse.TryParseRentalPeriod(startText, endText, out RentalPeriod? period, out string dateError) || period is null)
+RentalRequestCreationResult creation = RentalRequestFactory.Create(
+    customers, customerId, startText, endText);
+
+RentalSearchResult standard;
+RentalSearchResult discounted;
+
+switch (creation)
 {
-    Console.WriteLine(dateError);
-    return;
+    case RentalRequestCreationResult.Valid valid:
+    {       
+        standard = Pipeline.RunValidated(
+            cars, rentals, valid.Request, "Standard", PricingPolicies.Standard);
+        discounted = Pipeline.RunValidated(
+            cars, rentals, valid.Request, "10% discount", PricingPolicies.Discounted);
+
+        PrintResult(standard);
+        PrintResult(discounted);
+        break;
+    }
+    case RentalRequestCreationResult.Invalid invalid:
+        foreach (string reason in invalid.Reasons)
+            Console.WriteLine($"Rental request rejected: {reason}");
+        return;
+    default:
+        throw new InvalidOperationException("Unknown rental request result.");
 }
-
-RentalSearchResult standard = Pipeline.Run(
-    cars, rentals, customer, period, "Standard", PricingPolicies.Standard);
-RentalSearchResult discounted = Pipeline.Run(
-    cars, rentals, customer, period, "10% discount", PricingPolicies.Discounted);
-
-PrintResult(standard);
-PrintResult(discounted);
 
 string outputFile = Path.Combine(Environment.CurrentDirectory, "rental-quotes.json");
 try

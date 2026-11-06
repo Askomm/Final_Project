@@ -109,4 +109,20 @@ public static class Pipeline
         List<CarQuote> quotes = CalculateQuotes(available, period, pricePolicy);
         return CreateSummary(customer.Id, period, policyName, quotes);
     }
+
+    public static RentalSearchResult RunValidated(
+        IEnumerable<Car> cars,
+        IEnumerable<Rental> rentals,
+        ValidatedRentalRequest request,
+        string policyName,
+        Func<Car, decimal> pricePolicy)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(policyName);
+        ArgumentNullException.ThrowIfNull(pricePolicy);
+
+        List<Car> available = SelectAvailableCars(cars, rentals, request.Customer, request.Period);
+        List<CarQuote> quotes = CalculateQuotes(available, request.Period, pricePolicy);
+        return CreateSummary(request.Customer.Id, request.Period, policyName, quotes);
+    }
 }
