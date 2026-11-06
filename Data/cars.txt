@@ -1,0 +1,5 @@
+001|Toyota Camry 40|Default|White|Manual
+002|Toyota Camry 70|Comfort|Black|Automat
+003|Audi A6|Comfort|Gray|Automat
+004|BMW 5 G30|Comfort|Black|Automat
+005|Mercedes S Class|Luxury|Black|Automat

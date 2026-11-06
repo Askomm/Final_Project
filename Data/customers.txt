@@ -1,0 +1,3 @@
+001|Azamat|18|True|Manual
+002|Egor|20|True|Automat
+003|Sergei|25|True|Manual
