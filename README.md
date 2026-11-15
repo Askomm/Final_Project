@@ -19,8 +19,8 @@ dotnet run --project Code.Tests/Code.Tests.csproj -c Release --no-build
 
 The last command runs the deterministic assertion-based test executable.
 Use it instead of `dotnet test`. It returns exit code 1 on a failing assertion.
-Verified result: **73 passed, 0 failed**; build: **0 warnings, 0 errors**.
-See `Docs/test-results.txt` for actual execution output.
+Verified result: **82 passed, 0 failed**; build: **0 warnings, 0 errors**.
+See `Reports/technical-fixes-test-results.txt` for actual execution output.
 
 The repository contains the native Windows x64 DLL. To rebuild it, install
 Visual Studio C++ Build Tools (tested with MSVC 19.51) and run:
@@ -39,6 +39,7 @@ saved booking prices. The project copies the DLL beside the managed executable.
 1. Search cars
 2. Create rental
 3. Close rental
+4. Search within budget
 0. Exit
 ```
 
@@ -155,7 +156,7 @@ encryption, deletion, customer management, cancellation or automatic backups.
 | Side-effect separation | ConsoleApplication for terminal I/O; RentalStore/Loader for files; NativeFee for P/Invoke |
 | Native integration | Real C service fee used for quotes and new bookings; actual and controlled-failure tests |
 | Persistence and resource ownership | Atomic JSON replacement and scoped lock/file streams |
-| Automated tests | 44 retained tests plus 29 final-project tests; pure, workflow, file and console checks |
+| Automated tests | 44 retained tests plus 38 final-project tests; pure, workflow, file and console checks |
 
 Search reports use actual loaded fleet and booking data, including changes made in
 earlier menu iterations. Fleet potential groups **all** cars by type and sums
@@ -171,14 +172,14 @@ I/O; materialized arrays can be reused without repeating file or native calls.
 - `RentalStore.cs`: persistence transaction and application service.
 - `RentalDataLoader.cs`: validated JSON reading and operational errors.
 - `Models.cs`, `Result.cs`, `Reports.cs`, `NativeFee.cs`: domain and functional building blocks.
-- `Code.Tests/FinalProjectTests.cs`: 29 new tests, including two persistent workflows,
+- `Code.Tests/FinalProjectTests.cs`: 38 tests, including two persistent workflows,
   failed replacement, lock contention, malformed closure, restart, EOF and menu errors.
 - `Code.Tests/Program.cs`: 44 retained tests covering pure functions, factories,
   Map/Bind, Option, reports, laziness, resource release and native integration.
-- `Docs/Project_Report.docx`: Project_Report in word format.
-- `Docs/Individual_Report.docx`: Individual_Report in word format.
-- `Docs/Project_Report.pdf`: Project_Report in pdf format.
-- `Docs/Individual_Report.pdf`: Individual_Report in pdf format.
+- `Reports/Project_Report.docx`: Project_Report in word format.
+- `Reports/Individual_Report.docx`: Individual_Report in word format.
+- `Reports/Project_Report.pdf`: Project_Report in pdf format.
+- `Reports/Individual_Report.pdf`: Individual_Report in pdf format.
 
 
 Controlled native failure (choose Search or Create, then enter valid inputs):
@@ -191,7 +192,7 @@ The error returns to the menu; enter 0 to exit. No rental is saved.
 `--demo-missing-file` and `--demo-malformed-file` are one-shot legacy diagnostic
 commands that print the expected failure and exit with status 1.
 
-## Repository 
+## Repository
 
 Repository: https://github.com/Askomm/Final_Project
 
@@ -203,3 +204,10 @@ Repository: https://github.com/Askomm/Final_Project
 
 
 
+
+## Technical fixes
+
+See [TECHNICAL_FIXES.md](TECHNICAL_FIXES.md) for the base commit, changed behavior,
+validation rules, new tests, and report-update notes. Option 4 asks for dates and
+a nonnegative maximum total budget (KZT). Option 1 remains unrestricted.
+Late returns now display the IDs of affected active reservations after saving.

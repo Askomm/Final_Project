@@ -30,6 +30,11 @@ public static class ConsoleInput
             : Result<DateOnly, RentalError>.Fail(new("DATE_INVALID",
                 label + " must be a real date in yyyy-MM-dd format (for example 2026-12-01)."));
 
+    public static Result<decimal, RentalError> Budget(string? text) =>
+        decimal.TryParse(text, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var value) && value >= 0
+            ? Result<decimal, RentalError>.Ok(value)
+            : Result<decimal, RentalError>.Fail(new("BUDGET_INVALID", "Budget must be a nonnegative number (for example 30500.00)."));
+
     public static Result<string, RentalError> Payment(string? text) =>
         text?.Trim().ToLowerInvariant() switch
         {
@@ -62,17 +67,17 @@ public static class RentalOperations
         int fee, Func<Car, decimal> policy) =>
         ReportQueries.CreateOffers(available, period.Days, fee, policy).ToArray();
 
-    public static ReportBundle BuildSearchReport(RentalData data, Offer[] standard, Offer[] discounted) =>
-        new(ReportQueries.AffordableOffers(standard, decimal.MaxValue),
-            ReportQueries.AffordableOffers(discounted, decimal.MaxValue),
+    public static ReportBundle BuildSearchReport(RentalData data, Offer[] standard, Offer[] discounted, decimal budget = decimal.MaxValue) =>
+        new(ReportQueries.AffordableOffers(standard, budget),
+            ReportQueries.AffordableOffers(discounted, budget),
             ReportQueries.FleetReport(data.Cars, ReportQueries.CreatePrice(0m)));
 
-    public static ReportBundle Search(RentalData data, BookingPeriod period, int serviceFee)
+    public static ReportBundle Search(RentalData data, BookingPeriod period, int serviceFee, decimal budget = decimal.MaxValue)
     {
         Car[] available = SelectAvailable(data, period).ToArray();
         Offer[] standard = PriceOffers(available, period, serviceFee, ReportQueries.CreatePrice(0m));
         Offer[] discounted = PriceOffers(available, period, serviceFee, ReportQueries.CreatePrice(.10m));
-        return BuildSearchReport(data, standard, discounted);
+        return BuildSearchReport(data, standard, discounted, budget);
     }
 
     public static Result<Car, RentalError> ValidateBooking(RentalData data, int customerId,
@@ -130,12 +135,27 @@ public static class RentalOperations
                 .Map(car =>
                 {
                     // No refund for an early return; a late return adds the booked daily rate.
-                    int billedDays = Math.Max(rental.EndDate.DayNumber, returned.DayNumber) - rental.StartDate.DayNumber;
-                    decimal daily = rental.DailyPrice > 0 ? rental.DailyPrice : PricingPolicies.Standard(car);
-                    var closed = rental with { Closure = new(returned, method, daily * billedDays + rental.ServiceFee) };
+                    var closed = rental with { Closure = new(returned, method, ClosingTotal(rental, car, returned)) };
                     return new RentalChange(Snapshot(data,
                         data.Rentals.Select(r => r.Id == rental.Id ? closed : r)), closed);
                 }));
+    }
+
+    // Shared calculation keeps persisted totals consistent with normal and legacy closures.
+    public static decimal ClosingTotal(Rental rental, Car car, DateOnly returned)
+    {
+        int days = Math.Max(rental.EndDate.DayNumber, returned.DayNumber) - rental.StartDate.DayNumber;
+        decimal daily = rental.DailyPrice > 0 ? rental.DailyPrice : PricingPolicies.Standard(car);
+        return daily * days + rental.ServiceFee;
+    }
+
+    public static int[] LateReturnConflicts(RentalData data, Rental closed)
+    {
+        if (closed.Closure is not { } closure || closure.ReturnDate <= closed.EndDate)
+            return [];
+        return data.Rentals.Where(r => r.Id != closed.Id && r.CarId == closed.CarId &&
+                r.Closure is null && r.StartDate < closure.ReturnDate && r.EndDate > closed.EndDate)
+            .OrderBy(r => r.StartDate).ThenBy(r => r.Id).Select(r => r.Id).ToArray();
     }
 
     private static RentalData Snapshot(RentalData data, IEnumerable<Rental> rentals) =>

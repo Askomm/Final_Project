@@ -228,6 +228,98 @@ internal static class FinalProjectTests
             Contains(Menu(path, "0\n2\n1\n1\n2026-12-10\n2026-12-12\n"), "Goodbye.");
             Equal(before, File.ReadAllText(path));
         }));
+        check("Fix imported period accepts 366 and rejects 367 days", () => InTemp(path =>
+        {
+            var node = JsonNode.Parse(File.ReadAllText(path))!;
+            node["rentals"]![0]!["startDate"] = "2026-01-01";
+            foreach (int days in new[] { 366, 367 })
+            {
+                node["rentals"]![0]!["endDate"] = new DateOnly(2026, 1, 1).AddDays(days).ToString("yyyy-MM-dd");
+                File.WriteAllText(path, node.ToJsonString());
+                if (days == 366) Value(RentalDataLoader.Load(path));
+                else Error(RentalDataLoader.Load(path), "DATA_FILE_MALFORMED");
+            }
+        }));
+        check("Fix stored totals validate early normal late and legacy rates", () => InTemp(path =>
+        {
+            string original = File.ReadAllText(path);
+            foreach (int day in new[] { 1, 2, 3, 5 })
+            foreach (bool legacy in new[] { false, true })
+            {
+                var node = JsonNode.Parse(original)!;
+                var rental = node["rentals"]![0]!;
+                if (legacy) { rental.AsObject().Remove("dailyPrice"); rental.AsObject().Remove("serviceFee"); }
+                int expected = 15000 * Math.Max(2, day - 1) + (legacy ? 0 : 500);
+                rental["closure"] = new JsonObject { ["returnDate"] = $"2026-12-{day:00}",
+                    ["paymentMethod"] = "Cash", ["totalPaid"] = expected };
+                File.WriteAllText(path, node.ToJsonString());
+                Value(RentalDataLoader.Load(path));
+                rental["closure"]!["totalPaid"] = expected + 1;
+                File.WriteAllText(path, node.ToJsonString());
+                Error(RentalDataLoader.Load(path), "DATA_FILE_MALFORMED");
+            }
+        }));
+        check("Fix invalid stored total prevents update and preserves bytes", () => InTemp(path =>
+        {
+            var node = JsonNode.Parse(File.ReadAllText(path))!;
+            node["rentals"]![0]!["closure"] = new JsonObject { ["returnDate"] = "2026-12-03",
+                ["paymentMethod"] = "Card", ["totalPaid"] = 1 };
+            File.WriteAllText(path, node.ToJsonString());
+            string before = File.ReadAllText(path); int calls = 0;
+            var service = new RentalService(new(path), new NativeFee(_ => { calls++; return 500; }));
+            Error(service.Create(1, 1, Period()), "DATA_FILE_MALFORMED");
+            Equal(before, File.ReadAllText(path)); Equal(0, calls);
+        }));
+        check("Fix budget parser normal zero invalid and overflow", () =>
+        {
+            Equal(30500.50m, Value(ConsoleInput.Budget("30500.50")));
+            Equal(0m, Value(ConsoleInput.Budget("0")));
+            foreach (string? bad in new[] { null, "", "-1", "abc", "1e5", "1,500", "999999999999999999999999999999999" })
+                Error(ConsoleInput.Budget(bad), "BUDGET_INVALID");
+        });
+        check("Fix budget filters both policies including boundary and zero", () => InTemp(path =>
+        {
+            var service = new RentalService(new(path), new NativeFee());
+            Equal(1, Value(service.Search(Period(), 30500)).Standard.Count);
+            var below = Value(service.Search(Period(), 30499));
+            Equal(0, below.Standard.Count); Equal(1, below.Discounted.Count);
+            Equal(0, Value(service.Search(Period(), 0)).Discounted.Count);
+            Equal(2, Value(service.Search(Period(), 0)).Fleet.Sum(x => x.Cars));
+            Error(service.Search(Period(), -1), "BUDGET_INVALID");
+        }));
+        check("Fix budget menu filters and recovers after bad input or EOF", () => InTemp(path =>
+        {
+            string before = File.ReadAllText(path);
+            string output = Menu(path, "4\n2026-12-10\n2026-12-12\n30500\n0\n");
+            Contains(output, "Search complete."); Contains(output, "Manual car;");
+            Equal(false, output.Contains("Automatic car;"));
+            Contains(Menu(path, "4\n2026-12-10\n2026-12-12\n-1\n0\n"), "BUDGET_INVALID");
+            Contains(Menu(path, "4\n2026-12-10\n2026-12-12\n"), "Goodbye.");
+            Equal(before, File.ReadAllText(path));
+        }));
+        check("Fix late return warns only affected active reservations", () => InTemp(path =>
+        {
+            var service = new RentalService(new(path), new NativeFee());
+            Value(service.Create(1, 1, Period("2026-12-03", "2026-12-04")));
+            Value(service.Create(1, 1, Period("2026-12-05", "2026-12-06")));
+            Value(service.Create(1, 2, Period("2026-12-03", "2026-12-04")));
+            var receipt = Value(service.CloseDetailed(1, new(2026, 12, 5), "Card"));
+            Equal("2", string.Join(",", receipt.ConflictingRentalIds));
+            var loaded = Value(RentalDataLoader.Load(path));
+            Equal(4, loaded.Rentals.Count); Equal(true, loaded.Rentals.Single(r => r.Id == 2).Closure is null);
+            Equal(60500m, loaded.Rentals[0].Closure!.TotalPaid);
+        }));
+        check("Fix on-time closure has no conflict warning", () => InTemp(path =>
+        {
+            var service = new RentalService(new(path), new NativeFee());
+            Value(service.Create(1, 1, Period("2026-12-03", "2026-12-04")));
+            Equal(0, Value(service.CloseDetailed(1, new(2026, 12, 3), "Cash")).ConflictingRentalIds.Count);
+        }));
+        check("Fix late-return menu shows reservation IDs after saving", () => InTemp(path =>
+        {
+            Value(new RentalService(new(path), new NativeFee()).Create(1, 1, Period("2026-12-03", "2026-12-04")));
+            Contains(Menu(path, "3\n1\n2026-12-05\nCash\n0\n"), "conflicts with reservation IDs: 2");
+        }));
         check("Final invalid path is a Result instead of an exception", () =>
             Error(RentalDataLoader.Load("bad\0path"), "DATA_FILE_PATH_INVALID"));
     }

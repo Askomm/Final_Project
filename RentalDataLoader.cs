@@ -34,7 +34,7 @@ public static class RentalDataLoader
 
         try
         {
-            
+
             string json = File.ReadAllText(path);
             RentalDataDocument? document = JsonSerializer.Deserialize<RentalDataDocument>(json, JsonOptions);
 
@@ -61,7 +61,8 @@ public static class RentalDataLoader
             }
 
             if (document.Rentals.Any(rental => rental is null || rental.Id <= 0 ||
-                    rental.CustomerId <= 0 || rental.CarId <= 0 || rental.EndDate <= rental.StartDate))
+                    rental.CustomerId <= 0 || rental.CarId <= 0 ||
+                    BookingPeriod.Create(rental.StartDate, rental.EndDate) is Result<BookingPeriod, RentalError>.Failure))
             {
                 return Malformed(path, "The rentals array contains an invalid rental record.");
             }
@@ -79,6 +80,11 @@ public static class RentalDataLoader
                     (closed.ReturnDate < r.StartDate || closed.TotalPaid < 0m ||
                      ConsoleInput.Payment(closed.PaymentMethod) is Result<string, RentalError>.Failure)))
                 return Malformed(path, "Invalid rental price, return date, payment method, or total.");
+
+            if (document.Rentals.Any(r => r.Closure is { } closure &&
+                    closure.TotalPaid != RentalOperations.ClosingTotal(r,
+                        document.Cars.Single(c => c.Id == r.CarId), closure.ReturnDate)))
+                return Malformed(path, "Stored payment total does not match the rental rate, dates and fee.");
 
             if (document.Rentals.Where(r => r.Closure is null).GroupBy(r => r.CarId).Any(group =>
                 group.OrderBy(r => r.StartDate).Zip(group.OrderBy(r => r.StartDate).Skip(1),

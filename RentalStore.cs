@@ -65,11 +65,19 @@ public sealed class RentalStore(string path)
             or System.Security.SecurityException;
 }
 
+public sealed record ClosureReceipt(Rental Rental, IReadOnlyList<int> ConflictingRentalIds);
+
 public sealed class RentalService(RentalStore store, NativeFee native)
 {
     public Result<ReportBundle, RentalError> Search(BookingPeriod period) =>
         store.Load().Bind(data => native.Calculate(period.Days)
             .Map(fee => RentalOperations.Search(data, period, fee)));
+
+    public Result<ReportBundle, RentalError> Search(BookingPeriod period, decimal budget) =>
+        budget < 0
+            ? Result<ReportBundle, RentalError>.Fail(new("BUDGET_INVALID", "Budget cannot be negative."))
+            : store.Load().Bind(data => native.Calculate(period.Days)
+                .Map(fee => RentalOperations.Search(data, period, fee, budget)));
 
     public Result<Rental, RentalError> Create(int customerId, int carId, BookingPeriod period) =>
         store.Update(data => RentalOperations.ValidateBooking(data, customerId, carId, period)
@@ -77,5 +85,15 @@ public sealed class RentalService(RentalStore store, NativeFee native)
             .Bind(fee => RentalOperations.Create(data, customerId, carId, period, fee)));
 
     public Result<Rental, RentalError> Close(int id, DateOnly returned, string payment) =>
-        store.Update(data => RentalOperations.Close(data, id, returned, payment));
+        CloseDetailed(id, returned, payment).Map(receipt => receipt.Rental);
+
+    public Result<ClosureReceipt, RentalError> CloseDetailed(int id, DateOnly returned, string payment)
+    {
+        int[] conflicts = [];
+        return store.Update(data => RentalOperations.Close(data, id, returned, payment).Map(change =>
+        {
+            conflicts = RentalOperations.LateReturnConflicts(change.Data, change.Rental);
+            return change;
+        })).Map(rental => new ClosureReceipt(rental, Array.AsReadOnly(conflicts)));
+    }
 }
