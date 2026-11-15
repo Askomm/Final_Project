@@ -1,22 +1,16 @@
-# Car Rental System - Assignment 8
+# Car Rental System — Final Project
 
-Student: **Azamat Kuanyshpayev**, group **IT-2514**. Individual submission.
-This extends the supplied Assignment 7 project in the same application. Earlier
-pipeline, validated requests, Result/Option, parsing and tests are retained.
-Submission scope: rental reports, extensions, configured pricing, deferred offers,
-C service-fee library, adapter, file export, tests and documentation. The Assignment 8
-extension was prepared with AI assistance; this identifies project scope rather than
-claiming unaided authorship. No additional team members are claimed.
+C# console application for searching available cars, creating rentals, and recording returns.
+Student recorded in the original project: **Azamat Kuanyshpayev, IT-2514**.
+Scope remains an individual project: three meaningful workflows and two reports.
+The final-project changes were implemented with AI assistance; review the code and
+complete the individual contribution report in your own words before submission.
 
-## Build, run and test
+## Build, run, test
 
-Supported platform: **Windows x64**. Tested on Windows build 10.0.26300,
-.NET SDK **10.0.401**, targeting **net10.0**. Install a .NET 10 SDK for x64.
-There are no external NuGet packages. A compiled x64 native DLL is included, so
-Visual Studio is needed only to rebuild the C component.
-
-Extract the ZIP. Open PowerShell **inside `IT-2514_Kuanyshpayev_Azamat_Assignment8`**
-(the folder containing `Code.sln`). Run:
+Supported platform: **Windows x64**, **.NET 10 SDK** (validated with **10.0.401**).
+No external NuGet packages and no database are required.
+Open PowerShell in the folder containing `Code.sln`:
 
 ```powershell
 dotnet build Code.sln -c Release --disable-build-servers -m:1
@@ -24,261 +18,207 @@ dotnet run --project Code.csproj -c Release --no-build
 dotnet run --project Code.Tests/Code.Tests.csproj -c Release --no-build
 ```
 
-The test project is an assertions-based executable, not a `dotnet test` framework.
-A failed assertion is reported as FAIL and gives exit code 1; success gives exit code 0.
-Latest result: **44 passed, 0 failed**, including a real native DLL call. Build:
-**0 warnings, 0 errors**. 
-Single-worker build avoids build-server/worker startup problems in restricted hosts.
+The last command runs the deterministic assertion-based test executable.
+Use it instead of `dotnet test`. It returns exit code 1 on a failing assertion.
+Verified result: **73 passed, 0 failed**; build: **0 warnings, 0 errors**.
+See `Docs/test-results.txt` for actual execution output.
 
-Running `dotnet run` asks for the customer ID, start date and end date by default.
-No interactive flag is needed. The budget remains 60,000 KZT. For the documented
-example, enter these three values when prompted:
-
-```text
-2
-14-10-2026
-16-10-2026
-```
-
-The program prints both reports and saves `rental-reports.json` in the working
-folder. The file is generated on demand and excluded from the submission.
-
-Safe failure demonstrations (each is expected to exit with code 1):
+The repository contains the native Windows x64 DLL. To rebuild it, install
+Visual Studio C++ Build Tools (tested with MSVC 19.51) and run:
 
 ```powershell
-dotnet run --project Code.csproj -c Release --no-build -- --demo-missing-file
-dotnet run --project Code.csproj -c Release --no-build -- --demo-malformed-file
+cmd /c Native\build-native.cmd
+```
+
+The C source exports `rental_service_fee`; `NativeFee` invokes it using Cdecl
+P/Invoke. Its result, 250 KZT per booked day, is used in displayed quotes and
+saved booking prices. The project copies the DLL beside the managed executable.
+
+## Menu and input
+
+```text
+1. Search cars
+2. Create rental
+3. Close rental
+0. Exit
+```
+
+Dates use **yyyy-MM-dd**, for example **2026-12-10**.
+Enter 0 at the menu to stop normally. EOF at any prompt also exits normally.
+Malformed input, invalid dates, missing IDs, unavailable cars and repeated closes
+produce a clear Result error and return to the menu. The program does not keep
+asking for the remaining fields after a parsing failure.
+
+1. **Search cars:** start date, end date. Displays cars with no overlapping
+   bookings, standard and 10%-discount quotes, and the fleet summary.
+   No customer ID is needed. An empty result is successful and says no cars are available.
+2. **Create rental:** customer ID, car ID, start date, end date.
+   Checks customer eligibility, car existence and availability, calculates the
+   native fee, allocates a unique ID, and saves immediately.
+3. **Close rental:** rental ID, return date, payment method.
+   Accepts **Cash**, **Card**, or **Transfer**, ignoring case and outer whitespace.
+   Records the actual return date, normalized method and total paid in JSON.
+   Closing an unknown or already-closed rental fails without changing the file.
+
+Existing IDs are printed at startup. The seed has customers 1–3 and cars 1–5.
+The original booking is rental 1, car 3, 2026-10-13 to 2026-10-17.
+
+### Reproducible demonstration
+
+Use a separate copy so a demonstration does not alter the seed:
+
+```powershell
+Copy-Item Data/rental-data.json demo-rentals.json
+dotnet run --project Code.csproj -c Release --no-build -- --data demo-rentals.json
+```
+
+- Choose 1, enter 2026-12-10 and 2026-12-12. Car 1 costs 30,500 KZT
+  standard (15,000 × 2 + 500) or 27,500 KZT with the comparison discount.
+- Choose 2, customer 1, car 1, the same dates. The new rental ID is 2.
+- Search again: car 1 is absent. A second overlapping booking fails.
+- Choose 3, rental 2, return 2026-12-11, Card. It closes for 30,500 KZT.
+- Search 2026-12-11 to 2026-12-12: car 1 is available again.
+- Exit and restart with the same `--data` path: the closed record remains.
+- Enter a word as an ID or an impossible date to show error recovery.
+
+## Business rules
+
+- Periods are **[start, end)**. End must be after start; maximum 366 booked days.
+  A booking ending on December 12 does not block one starting on December 12.
+- Customers need a driving license and age at least 18. Luxury cars require 21.
+  Transmission preference is advisory in the new workflow: the selected car may
+  have either transmission. The legacy customer-filtered quote API remains for
+  earlier assignments and its existing tests.
+- New bookings use the **standard** price. The discount report is a comparison,
+  not an automatically applied discount.
+- Daily prices: Default 15,000; Comfort 20,000; Luxury 30,000 KZT.
+  Automatic transmission adds 5,000. The native service fee is charged once.
+- An early return releases unused days but does not refund the agreed rental term.
+  A late return adds the saved daily rate for extra days. The original service fee
+  is unchanged. Same-day return is accepted with the full booked charge.
+- Closed rentals preserve history: their occupied interval ends at the actual
+  return date. Historical occupied dates remain unavailable; future dates are free.
+- A late return is recorded even if it overlaps another existing reservation.
+  The later reservation is retained for staff resolution; there is no automatic
+  cancellation or rescheduling in this version.
+- Dates are not compared with the system clock, allowing reproducible historical
+  demonstrations. The app is a date-based booking ledger, not a live vehicle tracker.
+- IDs increase from the maximum existing rental ID, including closed rentals.
+  Exhausting the integer range produces a Result failure.
+
+## JSON persistence and failures
+
+Default path: **Data/rental-data.json relative to the current working directory**.
+It is the live file; successful bookings and closes update it. Rebuilding the app
+does not replace it with the copy in `bin`. Use `--data <path>` for a separate file.
+The file must already exist; missing or malformed files are never silently reset.
+
+A single JSON document contains `cars`, `customers` and `rentals`.
+Each rental retains its original dates and IDs, saved `dailyPrice` and
+`serviceFee`. `closure: null` means active; a closure object contains
+`returnDate`, `paymentMethod` and `totalPaid`.
+Older records without the new optional fields load as active; a legacy zero rate
+uses the car's standard price on closing and retains its zero legacy service fee.
+
+The loader checks required fields, real dates, enums, positive unique IDs,
+references, nonnegative ages/prices, closure values and overlapping active bookings.
+It returns read/parse failures without partial data.
+
+Each update holds an exclusive `.lock` file handle while it reloads, validates,
+calculates and saves. The new snapshot is written to a temporary file in the same
+directory, flushed and closed, then replaces the live file. A failed save leaves
+the prior JSON intact. Readers and writers are disposed using `using`; temporary
+files are cleaned in `finally`. The empty lock file may remain, but its existence
+does not mean a running instance owns the lock. Only cooperating app instances
+are coordinated; manual external edits are outside that protocol.
+
+The app retains closed rentals indefinitely for audit and ID uniqueness.
+It is a local learning project without authentication, real payment processing,
+encryption, deletion, customer management, cancellation or automatic backups.
+
+## Functional programming evidence
+
+| Requirement | Used implementation |
+| --- | --- |
+| Related immutable models | Car, Customer, Rental, RentalClosure records in Models.cs |
+| Validated construction | BookingPeriod.Create with a private constructor |
+| Pure core and safe transitions | RentalOperations.Create and Close return new snapshots; repeat close is rejected |
+| Three named stages | SelectAvailable → PriceOffers → BuildSearchReport in RentalOperations.Search |
+| Higher-order pricing and two policies | PriceOffers accepts a Func; CreatePrice(0m) and CreatePrice(.10m) produce different totals |
+| Currying and partial application | ReportQueries.CreatePrice: discount → car → price |
+| Explicit errors and composition | Result.Map/Bind in ConsoleApplication, RentalService, RentalOperations and RentalStore |
+| Missing lookups | Option.Some/None and ToResult for customers, cars and rentals |
+| Pattern matching with payloads | Result success/failure, Option, customer eligibility and RentalClosure |
+| Two custom extensions | WithinBudget and SummarizeFleet in Reports.cs, used by the search reports |
+| Two LINQ reports | Available-price comparison and fleet daily revenue potential |
+| LINQ operations | Availability filtering, projection, price/name/ID tie-breakers, GroupBy, Count, Sum |
+| Lazy processing | CreateOffers uses yield return; ToArray materializes once per pricing configuration |
+| Side-effect separation | ConsoleApplication for terminal I/O; RentalStore/Loader for files; NativeFee for P/Invoke |
+| Native integration | Real C service fee used for quotes and new bookings; actual and controlled-failure tests |
+| Persistence and resource ownership | Atomic JSON replacement and scoped lock/file streams |
+| Automated tests | 44 retained tests plus 29 final-project tests; pure, workflow, file and console checks |
+
+Search reports use actual loaded fleet and booking data, including changes made in
+earlier menu iterations. Fleet potential groups **all** cars by type and sums
+their standard daily rates; it is capacity potential, not actual rental revenue.
+Empty, no-match and tied-order cases are tested. Deferred calculations perform no
+I/O; materialized arrays can be reused without repeating file or native calls.
+
+## Files and tests
+
+- `ConsoleApplication.cs`: menu loop and immediate input-error recovery.
+- `RentalOperations.cs`: validated periods, parsing, availability, pricing pipeline,
+  eligibility and immutable create/close transitions.
+- `RentalStore.cs`: persistence transaction and application service.
+- `RentalDataLoader.cs`: validated JSON reading and operational errors.
+- `Models.cs`, `Result.cs`, `Reports.cs`, `NativeFee.cs`: domain and functional building blocks.
+- `Code.Tests/FinalProjectTests.cs`: 29 new tests, including two persistent workflows,
+  failed replacement, lock contention, malformed closure, restart, EOF and menu errors.
+- `Code.Tests/Program.cs`: 44 retained tests covering pure functions, factories,
+  Map/Bind, Option, reports, laziness, resource release and native integration.
+- `Docs/Project_Report.pdf`: system report.
+- `Docs/Individual_Contribution_Worksheet.pdf`: prompts to complete in your own words.
+  It is not a claim that you personally authored the AI-generated changes.
+
+Controlled native failure (choose Search or Create, then enter valid inputs):
+
+```powershell
 dotnet run --project Code.csproj -c Release --no-build -- --demo-native-failure
 ```
 
-Expected codes respectively: DATA_FILE_MISSING, DATA_FILE_MALFORMED,
-NATIVE_UNAVAILABLE. The native failure demonstration asks for customer ID and dates first; enter the
-three example values above. The native failure flag injects a loading exception; the normal
-run always uses the actual C DLL. A failed workflow does not export or change a
-previous report. An export failure returns REPORT_EXPORT_FAILED and a nonzero exit.
+The error returns to the menu; enter 0 to exit. No rental is saved.
+`--demo-missing-file` and `--demo-malformed-file` are one-shot legacy diagnostic
+commands that print the expected failure and exit with status 1.
 
-## Input and domain rules
+## Repository and submission version
 
-`Data/rental-data.json` supplies 5 cars, 3 customers and 1 existing rental.
-`Data/malformed.json` supports the malformed-file demonstration. Earlier text files
-and parsers are kept for continuity. Data is loaded once and validated before use:
-arrays and fields must be present, IDs positive and unique, enums valid, rental
-references known, and end dates later than start dates. Negative ages are invalid.
-A stored underage/unlicensed customer can exist but cannot make an eligible request.
+Repository: https://github.com/Askomm/Final_Project
+Local review branch: `codex/rental-menu-json`. GitHub upload was not possible
+with the connected integration's current write permissions.
+Base version: `774797c7e19f7e28ee20e652e84ac74b9f86b743`.
 
-Dates use dd-MM-yyyy at the console. Periods are half-open [start, end), so a car
-becomes available on an existing rental's end date. Customers must be licensed and
-at least 18; luxury cars require age 21. Transmission must match the customer's
-preference. Overlapping rentals exclude a car. Invalid requests remain explicit
-Result failures. Service-fee support limits the integrated workflow to 1..366 days.
-
-Base daily prices in KZT: Default 15,000, Comfort 20,000, Luxury 30,000; automatic
-transmission adds 5,000. Configured discounts apply to the daily rental price;
-rounding is to 2 decimal places, midpoint away from zero. The fixed native service
-fee is added once per offer and is not discounted.
-
-## Two reports and expected results
-
-1. **Affordable rental offers**, for a customer comparing available cars. Input:
-   JSON cars/rentals/customer, validated dates, a budget and configured pricing.
-   Filters: eligibility, transmission, no overlap, and total <= budget. Output:
-   car ID/name, daily price, days, service fee and total. Order: total ascending,
-   ordinal car name, then ID. Standard and discount are two configurations of this
-   one report. For the example input, IDs **4 then 2** each cost **50,500 KZT**
-   standard or **45,500 KZT** discounted: 25,000 * 2 + 500, or 22,500 * 2 + 500.
-   A budget with no matches produces an empty report; no available cars is a domain
-   failure from the retained rental workflow.
-2. **Fleet daily revenue potential**, for a fleet manager. Input: all validated
-   JSON cars and the standard pricing function. There is intentionally no
-   availability filter: this estimates capacity for the whole fleet, not booked
-   revenue. Group by CarType, count cars and sum daily rates; order by potential
-   descending, then category enum value. Output: category, count, KZT/day.
-   Expected: **Comfort / 3 / 75,000**, **Luxury / 1 / 35,000**,
-   **Default / 1 / 15,000**. Total potential is **125,000 KZT/day**.
-
-Both pure report functions accept empty sequences. `Where`, `Select`, `OrderBy`,
-`OrderByDescending`, `ThenBy`, `GroupBy`, `Count` and `Sum` are used across the
-reports. Query transformations are in `Reports.cs`; console formatting is in
-`Program.cs`, export in `ReportExporter.cs`, and native loading in `NativeFee.cs`.
-
-## Requirement map
-
-| Task | Implementation |
-| --- | --- |
-| 1 Extensions | `RentalExtensions.WithinBudget` and `SummarizeFleet`, called by report queries |
-| 2 LINQ reports | `ReportQueries.AffordableOffers`, `FleetReport`; `ReportWorkflow.Run` integrates both |
-| 3 Currying | `ReportQueries.CreatePrice(discount)(car)`; Program fixes 0 and 0.10, passes both functions into workflow |
-| 4 Deferred execution | `CreateOffers` uses yield return; workflow materialises with ToArray; timing test uses a test-only counter |
-| 5 Disposal | loader's File.ReadAllText; export's bounded using StreamWriter; cleanup tests |
-| 6 Retention | resource note below |
-| 7 C function | `Native/rental_native.c` and `.h`: rental_service_fee |
-| 8 Binding/build | `Native/build-native.cmd`, `NativeFee`, runtime DLL copy in Code.csproj |
-| Earlier safe pipeline | `Pipeline.cs`, `RentalRequest.cs`, `RentalWorkflow.cs`, `Result.cs`, `RentalDataLoader.cs` |
-
-`WithinBudget`: receiver IEnumerable<Offer>, result IEnumerable<Offer>, lazy
-inclusive budget filter. Budget belongs to a sequence of offers because each offer
-already contains the complete customer cost. The workflow rejects negative budgets.
-`SummarizeFleet`: receiver IEnumerable<Car>, result IEnumerable<FleetTotal>, lazy
-group projection using a supplied price function. Category and capacity belong to
-the fleet collection, independent of display or storage. Neither extension mutates
-its source or merely renames a standard method.
-
-`CreatePrice` is decimal -> (Car -> decimal); calling it once fixes the discount.
-On the same Comfort automatic car, the two functions return **25,000** and
-**22,500**. A closure captures only the immutable discount; no global configuration
-is changed. Both functions are passed into the report workflow and used on the same
-available-car snapshot.
-
-## Native contract and reproducible rebuild
-
-Compiler used: **MSVC C/C++ 19.51.36260 for x64**, toolset directory 14.51.36231,
-Visual Studio 2026 Community. Prerequisite to rebuild: Visual Studio or Build Tools
-with Desktop development with C++ (MSVC x64 tools and Windows SDK).
-From the project root:
+The checked-out submission commit is obtained with `git rev-parse HEAD`.
+Use that full identifier in the final reports; a commit cannot contain its own
+hash in a tracked file. `package.ps1` records the exact commit in an untracked
+`SUBMISSION_VERSION.txt` inside the archive and excludes bin, obj and Git metadata.
+The source files in the archive come directly from that commit, not a dirty worktree.
 
 ```powershell
-.\Native\build-native.cmd
-dotnet build Code.sln -c Release --disable-build-servers -m:1
-dotnet run --project Code.csproj -c Release --no-build
-dotnet run --project Code.Tests/Code.Tests.csproj -c Release --no-build
+powershell -ExecutionPolicy Bypass -File package.ps1
 ```
 
-The script discovers Visual Studio with vswhere, initializes vcvars64, and runs:
+Before Moodle submission, complete and review your individual contribution report,
+confirm any instructor-required AI acknowledgement, and finalize reports against
+the selected submission commit. The current three workflows meet the individual
+scope; a larger team requires more meaningful workflows under the project brief.
 
-```text
-cl /nologo /W4 /WX /O2 /MT /LD rental_native.c /Fobuild\rental_native.obj /link /OUT:..\runtimes\win-x64\native\rental_native.dll /IMPLIB:build\rental_native.lib
-```
+## References
 
-Compiler working directory: `Native`. `.c` selects C compilation. `/MT` uses the
-static C runtime; `/LD` emits a DLL; warnings are errors. Intermediates go in
-`Native/build`, excluded from the archive.
-
-Export: `int32_t __cdecl rental_service_fee(int32_t days)`.
-Valid input: **1..366 days**. Output: nonnegative **whole KZT**, exactly days * 250.
-Invalid input: **-1**. Maximum output: 91,500; no overflow within the domain.
-No floating-point math or rounding is involved. Manually checked example:
-**2 days * 250 KZT/day = 500 KZT**. No memory or handles cross this boundary.
-The header uses fixed-width int32_t; C# uses 32-bit int for argument and result,
-DllImport, exact export spelling, and CallingConvention.Cdecl. No unsafe code or
-special marshalling settings are needed; both projects target x64.
-
-The included DLL is in `runtimes/win-x64/native/rental_native.dll`. The project links
-it as `rental_native.dll` and copies it beside the managed assembly on build, also
-into the referencing test project's output. The runtime resolves it there. The
-adapter validates days before calling and translates DllNotFoundException,
-EntryPointNotFoundException and BadImageFormatException to NATIVE_UNAVAILABLE.
-A native -1 maps to NATIVE_REJECTED. No managed fallback replaces the real call.
-
-Integration difficulty encountered: the C compiler was installed but absent from
-the ordinary shell PATH. The build script now discovers the installation and loads
-the x64 compiler environment before compilation. This also ensures the DLL matches
-the x64 managed process. Tests inject loader exceptions rather than delete an
-already-loaded library, avoiding misleading results caused by native module caching.
-Reference: [Microsoft P/Invoke documentation](https://learn.microsoft.com/en-us/dotnet/standard/native-interop/pinvoke).
-
-## Resource ownership, retention and allocation
-
-The loader uses File.ReadAllText, which owns and closes its internal stream before
-returning the text, including on read failure. JSON deserialization happens after
-that scope. Loader tests open files exclusively and delete them after both success
-and malformed content to check observable handle cleanup.
-
-`ReportExporter.Save` owns its StreamWriter in a bounded using block. The writer
-is disposed on success or write failure, before the temporary file is moved. A move
-failure still runs finally cleanup; the existing destination remains intact.
-Serialization finishes before the writer is opened. Tests check exclusive access
-on success and removal of temporary output after a move failure. Cleanup is best
-effort if the OS itself refuses deletion; the original failure remains the Result.
-There is no open resource inside the yield iterator.
-
-The loader materialises read-only snapshots of JSON arrays. The reporting workflow
-materialises available cars once and each configured offer sequence once with
-ToArray, then materialises sorted report rows for display/export. This is a small
-bounded dataset; the retained Assignment 7 quote comparison creates some additional
-short-lived lists in exchange for preserving the validated earlier pipeline.
-The budget query could be moved before materialisation for large fleets, but a
-snapshot is intentional here for predictable reuse.
-
-Before ToArray, enumerating CreateOffers again repeats pure price calculations and
-retains its source and price delegate while the iterator remains referenced. It
-never rereads a file or changes rental state. After materialisation, repeated use
-of the resulting array reuses values without invoking pricing again. The test probe
-shows counts 0 at creation, 1 after First, 6 after materialising all five again,
-6 after repeated snapshot use, and 11 after re-enumerating the lazy source.
-Production pricing has no diagnostic side effects.
-
-Streaming lowers retained result memory but repeats work if reused. A snapshot
-stores O(n) values and gives stable repeated access. Sorting and grouping themselves
-need buffering. Closures capture only a discount decimal; the iterator temporarily
-retains its car sequence. There are no growing static collections, caches, events,
-or background subscriptions. Static JSON options are bounded configuration.
-No claim is made that a memory leak was fixed. The native function allocates no
-memory; P/Invoke manages the module lifetime. Garbage collection is not used as a
-substitute for deterministic file disposal.
-
-## Automated test inventory
-
-`Code.Tests/Program.cs` contains 20 retained tests and 24 new tests. At least eight
-are pure/domain tests; complete success and failure workflows include JSON input,
-both reports, native integration and export gating. Missing/malformed file tests
-use unique paths with finally cleanup. A8 temporary directories are under the
-working folder so the suite works in restricted workspaces.
-
-| # | Case | Expected |
-| --- | --- | --- |
-| 1 | Normal workflow | Two eligible cars; each 50,000 KZT. |
-| 2 | Empty dataset | Empty input produces zero quotes. |
-| 3 | Age 18 boundary | Licensed age 18 can rent a regular car. |
-| 4 | Invalid and missing input | Missing values, numeric enums, underage row and invalid dates rejected. |
-| 5 | Two pricing policies | Standard 50,000 vs discounted 45,000. |
-| 6 | Stages and input collections stay unchanged | All stages agree and input arrays are unchanged. |
-| 7 | Factory success is used by the validated workflow | Validated request flows into two correct quotes. |
-| 8 | Factory rejects missing customer and invalid dates | Missing customer, nonpositive ID, invalid dates and underage customer rejected. |
-| 9 | Pattern matching handles both result cases and eligibility rules | Correct success/error cases and no-license rejection. |
-| 10 | One-day boundary, repeated operation, and state preservation | One day costs 25,000; repeated operations preserve data. |
-| 11 | Assignment 7 integrated Result workflow succeeds | Result chain produces standard and discounted quotes. |
-| 12 | Assignment 7 reports distinct domain failures | Distinct ID, customer, period and availability errors. |
-| 13 | Option lookup distinguishes present and absent customers | Some/None distinguish absence from false license. |
-| 14 | Map transforms a successful value | Map gives Value: 42. |
-| 15 | Bind continues with the next Result operation | Bind gives 12 and propagates next-step failure. |
-| 16 | Map and Bind propagate failure without invoking functions | Neither callback runs after failure. |
-| 17 | Valid JSON file loads as one complete dataset | JSON contains 5 cars, 3 customers, 1 rental. |
-| 18 | Missing input file becomes an explicit failure | DATA_FILE_MISSING with cleanup. |
-| 19 | Malformed JSON becomes a failure without partial data | DATA_FILE_MALFORMED with cleanup. |
-| 20 | Result cases reject a missing payload | Null success/error payloads rejected. |
-| 21 | A8 budget extension includes boundary and excludes expensive offers | 30,500 budget includes car 1; zero budget has none. |
-| 22 | A8 fleet extension groups and sums | Comfort count 3 / 75,000; fleet total 125,000. |
-| 23 | A8 both curried functions differ on same input | Same car gives 25,000 and 22,500. |
-| 24 | A8 invalid configuration rejected | Discounts outside 0..1 rejected. |
-| 25 | A8 both reports accept empty input | Both reports empty. |
-| 26 | A8 reports with no matches | Filtered reports empty. |
-| 27 | A8 deterministic tied offer ordering | Name then ID resolves equal totals. |
-| 28 | A8 deterministic tied fleet ordering | Category resolves equal potential. |
-| 29 | A8 deferred timing and snapshot reuse | Probe counts 0, 1, 6, 6, 11. |
-| 30 | A8 real native call matches manual fee | Real DLL: 2 -> 500, 1 -> 250, 366 -> 91,500. |
-| 31 | A8 adapter rejects days before calling native | Invalid days rejected with zero calls. |
-| 32 | A8 native binding failures become Result failures | Three loading/binding failures and native -1 translated. |
-| 33 | A8 complete JSON to reports native and export workflow | JSON to real native reports: 50,500 / 45,500; fleet totals; export parsed and unlocked. |
-| 34 | A8 complete failure workflow preserves data and previous export | Native failure preserves input and previous output. |
-| 35 | A8 export failure cleans temporary file and releases writer | Failed move removes temporary output. |
-| 36 | A8 input file handles released after success and parsing failure | Exclusive open/delete works after valid and malformed load. |
-| 37 | A8 duplicate and dangling data rejected | Duplicate IDs, dangling references, bad dates/enums rejected. |
-| 38 | A8 budget and excessive period failures | Negative budget and >366-day fee period rejected. |
-| 39 | Missing car fields | Each omitted car constructor field returns DATA_FILE_MALFORMED. |
-| 40 | Missing customer fields | Each omitted customer constructor field returns DATA_FILE_MALFORMED. |
-| 41 | Missing rental fields | Each omitted rental constructor field returns DATA_FILE_MALFORMED. |
-| 42 | Explicit zero/false values | Stored values are preserved; ineligible customer still cannot rent. |
-| 43 | Dependent workflow operations skipped | Unknown customer produces zero native/pricing calls. |
-| 44 | Actual application failure processes | All three failure demos exit 1 and preserve existing report bytes without extra files. |
-
-JSON validation uses `RespectRequiredConstructorParameters = true` (.NET 10).
-Every positional record constructor parameter is required: an absent enum, boolean,
-age, or date cannot silently become its CLR default. Explicit zero/false values
-remain valid stored values where the domain permits them. Missing-field tests remove
-each field individually and assert DATA_FILE_MALFORMED. The process-level test runs
-the actual application entry point, so it verifies the real export guard rather
-than reproducing that guard inside the test. It uses the installed dotnet host,
-redirected input/output, a 15-second timeout, and isolated temporary output folders.
+- Project brief: Final Project Requirements.pdf; supplemental Pasted markdown.md.
+- Original project: Askomm/Final_Project at the base version above.
+- Microsoft Learn: C# records, pattern matching, LINQ, System.Text.Json, and native
+  interoperability. The project uses .NET framework APIs and its own C code;
+  it has no added third-party runtime dependencies.
 
 
 

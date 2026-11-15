@@ -1,0 +1,75 @@
+PASS: Normal workflow
+PASS: Empty dataset
+PASS: Age 18 boundary
+PASS: Invalid and missing input
+PASS: Two pricing policies
+PASS: Stages and input collections stay unchanged
+PASS: Factory success is used by the validated workflow
+PASS: Factory rejects missing customer and invalid dates
+PASS: Pattern matching handles both result cases and eligibility rules
+PASS: One-day boundary, repeated operation, and state preservation
+PASS: Assignment 7 integrated Result workflow succeeds
+PASS: Assignment 7 reports distinct domain failures
+PASS: Option lookup distinguishes present and absent customers
+PASS: Map transforms a successful value
+PASS: Bind continues with the next Result operation
+PASS: Map and Bind propagate failure without invoking functions
+PASS: Valid JSON file loads as one complete dataset
+PASS: Missing input file becomes an explicit failure
+PASS: Malformed JSON becomes a failure without partial data
+PASS: Result cases reject a missing payload
+PASS: A8 budget extension includes boundary and excludes expensive offers
+PASS: A8 fleet extension groups and sums
+PASS: A8 both curried functions differ on same input
+PASS: A8 invalid configuration rejected
+PASS: A8 both reports accept empty input
+PASS: A8 reports with no matches
+PASS: A8 deterministic tied offer ordering
+PASS: A8 deterministic tied fleet ordering
+PASS: A8 deferred timing and snapshot reuse
+PASS: A8 real native call matches manual fee
+PASS: A8 adapter rejects days before calling native
+PASS: A8 native binding failures become Result failures
+PASS: A8 complete JSON to reports native and export workflow
+PASS: A8 complete failure workflow preserves data and previous export
+PASS: A8 export failure cleans temporary file and releases writer
+PASS: A8 input file handles released after success and parsing failure
+PASS: A8 duplicate and dangling data rejected
+PASS: A8 budget and excessive period failures
+PASS: A8 missing car fields are rejected instead of defaulted
+PASS: A8 missing customer fields are rejected instead of defaulted
+PASS: A8 missing rental fields are rejected instead of defaulted
+PASS: A8 explicit zero and false fields remain valid stored data
+PASS: A8 failed request skips native and configured calculations
+PASS: A8 actual application failures preserve an existing report
+PASS: Final ISO dates, leap years, blank and invalid dates
+PASS: Final IDs reject overflow, negatives, decimals and empty input
+PASS: Final validated period boundaries
+PASS: Final search detects containing, partial, exact and adjacent overlaps
+PASS: Final search is independent of customer transmission preference
+PASS: Final empty search and fleet reports are successful
+PASS: Final real policies, native fee and fleet aggregation
+PASS: Final immutable create and unique IDs
+PASS: Final missing customer and car use explicit outcomes
+PASS: Final age, license and luxury eligibility
+PASS: Final duplicate booking and exhausted IDs
+PASS: Final close records normalized payment and preserves input
+PASS: Final close rejects missing ID, repeat close, invalid date and payment
+PASS: Final early return frees remaining days and keeps occupied history
+PASS: Final late return charges extra days and extends occupied history
+PASS: Final same-day return occupies no full day but retains minimum booked charge
+PASS: Final full create-save-restart-search workflow
+PASS: Final full close-save-restart-availability workflow
+PASS: Final failures preserve bytes and skip native calls
+PASS: Final locked save fails atomically and releases owned resources
+PASS: Final concurrent writer is rejected before changing data
+PASS: Final missing and malformed files are never replaced
+PASS: Final stored closures and overlapping active bookings are validated
+PASS: Final menu invalid input returns to menu and accepts next command
+PASS: Final menu create, overlap failure, close and next search
+PASS: Final menu invalid payment leaves rental active
+PASS: Final end-of-input at every prompt exits without saving
+PASS: Final zero exits without performing later input
+PASS: Final invalid path is a Result instead of an exception
+
+Tests: 73 passed, 0 failed.

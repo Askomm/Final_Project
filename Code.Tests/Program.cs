@@ -609,12 +609,14 @@ Check("A8 actual application failures preserve an existing report", () =>
             start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "Code.Tests.runtimeconfig.json"));
             start.ArgumentList.Add(typeof(ReportWorkflow).Assembly.Location);
             start.ArgumentList.Add(scenario.Flag);
+            start.ArgumentList.Add("--data");
+            start.ArgumentList.Add(Path.GetFullPath("Data/rental-data.json"));
             using var process = System.Diagnostics.Process.Start(start)
                 ?? throw new Exception("Could not start application.");
             var output = process.StandardOutput.ReadToEndAsync();
             var errors = process.StandardError.ReadToEndAsync();
             if (scenario.Flag == "--demo-native-failure")
-                process.StandardInput.WriteLine("2\n14-10-2026\n16-10-2026");
+                process.StandardInput.WriteLine("1\n2026-10-14\n2026-10-16\n0");
             process.StandardInput.Close();
             if (!process.WaitForExit(15000))
             {
@@ -622,7 +624,8 @@ Check("A8 actual application failures preserve an existing report", () =>
                 process.WaitForExit();
                 throw new Exception("Application did not finish within 15 seconds.");
             }
-            Assert(process.ExitCode == 1, "Failure must exit with code 1: " + errors.GetAwaiter().GetResult());
+            Assert(process.ExitCode == (scenario.Flag == "--demo-native-failure" ? 0 : 1),
+                "Unexpected exit code: " + errors.GetAwaiter().GetResult());
             Assert(output.GetAwaiter().GetResult().Contains(scenario.Error), "Expected application error missing.");
             Assert(File.ReadAllText(report) == "previous report", "Application overwrote the previous report.");
             Assert(Directory.GetFiles(dir).Length == 1, "Failure left unexpected output files.");
@@ -660,6 +663,7 @@ static void InTempDirectory(Action<string> test)
     Directory.CreateDirectory(dir);
     try { test(dir); } finally { Directory.Delete(dir, recursive: true); }
 }
+FinalProjectTests.Run(Check);
 Console.WriteLine($"\nTests: {passed} passed, {failed} failed.");
 Environment.ExitCode = failed == 0 ? 0 : 1;
 

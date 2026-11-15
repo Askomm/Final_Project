@@ -19,7 +19,12 @@ public sealed record Rental(
     int CustomerId,
     int CarId,
     DateOnly StartDate,
-    DateOnly EndDate);
+    DateOnly EndDate,
+    RentalClosure? Closure = null,
+    decimal DailyPrice = 0m,
+    int ServiceFee = 0);
+
+public sealed record RentalClosure(DateOnly ReturnDate, string PaymentMethod, decimal TotalPaid);
 
 public sealed record RentalPeriod(DateOnly StartDate, DateOnly EndDate)
 {

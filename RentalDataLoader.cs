@@ -75,6 +75,17 @@ public static class RentalDataLoader
                     !document.Customers.Any(c => c.Id == r.CustomerId)))
                 return Malformed(path, "Duplicate IDs, invalid age, or unknown rental reference.");
 
+            if (document.Rentals.Any(r => r.DailyPrice < 0m || r.DailyPrice > 1000000000m ||
+                    r.ServiceFee < 0 || r.Closure is { } closed &&
+                    (closed.ReturnDate < r.StartDate || closed.TotalPaid < 0m ||
+                     ConsoleInput.Payment(closed.PaymentMethod) is Result<string, RentalError>.Failure)))
+                return Malformed(path, "Invalid rental price, return date, payment method, or total.");
+
+            if (document.Rentals.Where(r => r.Closure is null).GroupBy(r => r.CarId).Any(group =>
+                group.OrderBy(r => r.StartDate).Zip(group.OrderBy(r => r.StartDate).Skip(1),
+                    (left, right) => left.EndDate > right.StartDate).Any(overlap => overlap)))
+                return Malformed(path, "Active bookings for the same car overlap.");
+
             RentalData data = new(
                 Array.AsReadOnly(document.Cars.ToArray()),
                 Array.AsReadOnly(document.Customers.ToArray()),
@@ -105,6 +116,11 @@ public static class RentalDataLoader
         {
             return Result<RentalData, RentalError>.Fail(
                 new RentalError("DATA_FILE_READ_FAILED", $"Could not read '{path}': {exception.Message}"));
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or System.Security.SecurityException)
+        {
+            return Result<RentalData, RentalError>.Fail(
+                new RentalError("DATA_FILE_PATH_INVALID", $"Invalid or inaccessible JSON path: {exception.Message}"));
         }
     }
 

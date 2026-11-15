@@ -44,7 +44,8 @@ public static class Pipeline
             bool isRented = rentals.Any(rental =>
                 rental.CarId == car.Id &&
                 rental.StartDate < period.EndDate &&
-                period.StartDate < rental.EndDate);
+                period.StartDate < RentalOperations.OccupiedUntil(rental) &&
+                rental.StartDate < RentalOperations.OccupiedUntil(rental));
 
             if (!isRented)
                 available.Add(car);

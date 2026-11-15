@@ -480,3 +480,12 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Rental runtime state and local verification
+*.lock
+*.tmp
+demo-rentals.json
+Native/build/
+artifacts/
+SUBMISSION_VERSION.txt
+!runtimes/win-x64/native/rental_native.dll

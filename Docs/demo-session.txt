@@ -1,0 +1,108 @@
+Car Rental System - Final Project
+Dates: yyyy-MM-dd. Prices: KZT. Data: [temporary copy of Data/rental-data.json]
+Customers: 1 = Azamat, 2 = Egor, 3 = Sergei
+Cars: 1 = Toyota Camry 40, 2 = Toyota Camry 70, 3 = Audi A6, 4 = BMW 5 G30, 5 = Mercedes S Class
+Active rental IDs: 1
+
+1. Search cars
+2. Create rental
+3. Close rental
+0. Exit
+Choice: Start date: End date:
+Available cars - standard booking price:
+1: Toyota Camry 40; 15000,00 KZT/day x 2 + 500 service fee = 30500,00 KZT
+3: Audi A6; 25000,00 KZT/day x 2 + 500 service fee = 50500,00 KZT
+4: BMW 5 G30; 25000,00 KZT/day x 2 + 500 service fee = 50500,00 KZT
+2: Toyota Camry 70; 25000,00 KZT/day x 2 + 500 service fee = 50500,00 KZT
+5: Mercedes S Class; 35000,00 KZT/day x 2 + 500 service fee = 70500,00 KZT
+
+Policy comparison - 10% discount (quote only):
+1: Toyota Camry 40; 13500,00 KZT/day x 2 + 500 service fee = 27500,00 KZT
+3: Audi A6; 22500,00 KZT/day x 2 + 500 service fee = 45500,00 KZT
+4: BMW 5 G30; 22500,00 KZT/day x 2 + 500 service fee = 45500,00 KZT
+2: Toyota Camry 70; 22500,00 KZT/day x 2 + 500 service fee = 45500,00 KZT
+5: Mercedes S Class; 31500,00 KZT/day x 2 + 500 service fee = 63500,00 KZT
+
+Fleet daily revenue potential (all cars, before service fees):
+Comfort: 3 cars; 75000,00 KZT/day
+Luxury: 1 cars; 35000,00 KZT/day
+Default: 1 cars; 15000,00 KZT/day
+Search complete. Choose 2 to book at the standard price.
+
+1. Search cars
+2. Create rental
+3. Close rental
+0. Exit
+Choice: Customer ID: Car ID: Start date: End date: Rental created. ID = 2. Saved to JSON. Booked total: 30500,00 KZT.
+
+1. Search cars
+2. Create rental
+3. Close rental
+0. Exit
+Choice: Start date: End date:
+Available cars - standard booking price:
+3: Audi A6; 25000,00 KZT/day x 2 + 500 service fee = 50500,00 KZT
+4: BMW 5 G30; 25000,00 KZT/day x 2 + 500 service fee = 50500,00 KZT
+2: Toyota Camry 70; 25000,00 KZT/day x 2 + 500 service fee = 50500,00 KZT
+5: Mercedes S Class; 35000,00 KZT/day x 2 + 500 service fee = 70500,00 KZT
+
+Policy comparison - 10% discount (quote only):
+3: Audi A6; 22500,00 KZT/day x 2 + 500 service fee = 45500,00 KZT
+4: BMW 5 G30; 22500,00 KZT/day x 2 + 500 service fee = 45500,00 KZT
+2: Toyota Camry 70; 22500,00 KZT/day x 2 + 500 service fee = 45500,00 KZT
+5: Mercedes S Class; 31500,00 KZT/day x 2 + 500 service fee = 63500,00 KZT
+
+Fleet daily revenue potential (all cars, before service fees):
+Comfort: 3 cars; 75000,00 KZT/day
+Luxury: 1 cars; 35000,00 KZT/day
+Default: 1 cars; 15000,00 KZT/day
+Search complete. Choose 2 to book at the standard price.
+
+1. Search cars
+2. Create rental
+3. Close rental
+0. Exit
+Choice: Customer ID: Car ID: Start date: End date: Error [CAR_UNAVAILABLE]: This car is already booked for part of the selected period.
+
+1. Search cars
+2. Create rental
+3. Close rental
+0. Exit
+Choice: Rental ID: Return date: Payment method (Cash/Card/Transfer): Rental closed. ID = 2. Paid: 30500,00 KZT by Card. Saved to JSON.
+
+1. Search cars
+2. Create rental
+3. Close rental
+0. Exit
+Choice: Start date: End date:
+Available cars - standard booking price:
+1: Toyota Camry 40; 15000,00 KZT/day x 1 + 250 service fee = 15250,00 KZT
+3: Audi A6; 25000,00 KZT/day x 1 + 250 service fee = 25250,00 KZT
+4: BMW 5 G30; 25000,00 KZT/day x 1 + 250 service fee = 25250,00 KZT
+2: Toyota Camry 70; 25000,00 KZT/day x 1 + 250 service fee = 25250,00 KZT
+5: Mercedes S Class; 35000,00 KZT/day x 1 + 250 service fee = 35250,00 KZT
+
+Policy comparison - 10% discount (quote only):
+1: Toyota Camry 40; 13500,00 KZT/day x 1 + 250 service fee = 13750,00 KZT
+3: Audi A6; 22500,00 KZT/day x 1 + 250 service fee = 22750,00 KZT
+4: BMW 5 G30; 22500,00 KZT/day x 1 + 250 service fee = 22750,00 KZT
+2: Toyota Camry 70; 22500,00 KZT/day x 1 + 250 service fee = 22750,00 KZT
+5: Mercedes S Class; 31500,00 KZT/day x 1 + 250 service fee = 31750,00 KZT
+
+Fleet daily revenue potential (all cars, before service fees):
+Comfort: 3 cars; 75000,00 KZT/day
+Luxury: 1 cars; 35000,00 KZT/day
+Default: 1 cars; 15000,00 KZT/day
+Search complete. Choose 2 to book at the standard price.
+
+1. Search cars
+2. Create rental
+3. Close rental
+0. Exit
+Choice: Error [CHOICE_INVALID]: Choose 0, 1, 2, or 3.
+
+1. Search cars
+2. Create rental
+3. Close rental
+0. Exit
+Choice: Goodbye.
