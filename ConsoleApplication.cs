@@ -1,6 +1,5 @@
 namespace Code;
 
-// Caller-owned streams allow tests of the real menu without global Console changes.
 public sealed class ConsoleApplication(TextReader input, TextWriter output,
     RentalStore store, NativeFee native)
 {

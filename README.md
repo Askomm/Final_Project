@@ -1,10 +1,9 @@
 # Car Rental System — Final Project
 
 C# console application for searching available cars, creating rentals, and recording returns.
-Student recorded in the original project: **Azamat Kuanyshpayev, IT-2514**.
-Scope remains an individual project: three meaningful workflows and two reports.
-The final-project changes were implemented with AI assistance; review the code and
-complete the individual contribution report in your own words before submission.
+Azamat Kuanyshpayev, IT-2514.
+Three meaningful workflows and two reports.
+
 
 ## Build, run, test
 
@@ -176,9 +175,11 @@ I/O; materialized arrays can be reused without repeating file or native calls.
   failed replacement, lock contention, malformed closure, restart, EOF and menu errors.
 - `Code.Tests/Program.cs`: 44 retained tests covering pure functions, factories,
   Map/Bind, Option, reports, laziness, resource release and native integration.
-- `Docs/Project_Report.pdf`: system report.
-- `Docs/Individual_Contribution_Worksheet.pdf`: prompts to complete in your own words.
-  It is not a claim that you personally authored the AI-generated changes.
+- `Docs/Project_Report.docx`: Project_Report in word format.
+- `Docs/Individual_Report.docx`: Individual_Report in word format.
+- `Docs/Project_Report.pdf`: Project_Report in pdf format.
+- `Docs/Individual_Report.pdf`: Individual_Report in pdf format.
+
 
 Controlled native failure (choose Search or Create, then enter valid inputs):
 
@@ -190,32 +191,12 @@ The error returns to the menu; enter 0 to exit. No rental is saved.
 `--demo-missing-file` and `--demo-malformed-file` are one-shot legacy diagnostic
 commands that print the expected failure and exit with status 1.
 
-## Repository and submission version
+## Repository 
 
 Repository: https://github.com/Askomm/Final_Project
-Local review branch: `codex/rental-menu-json`. GitHub upload was not possible
-with the connected integration's current write permissions.
-Base version: `774797c7e19f7e28ee20e652e84ac74b9f86b743`.
-
-The checked-out submission commit is obtained with `git rev-parse HEAD`.
-Use that full identifier in the final reports; a commit cannot contain its own
-hash in a tracked file. `package.ps1` records the exact commit in an untracked
-`SUBMISSION_VERSION.txt` inside the archive and excludes bin, obj and Git metadata.
-The source files in the archive come directly from that commit, not a dirty worktree.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File package.ps1
-```
-
-Before Moodle submission, complete and review your individual contribution report,
-confirm any instructor-required AI acknowledgement, and finalize reports against
-the selected submission commit. The current three workflows meet the individual
-scope; a larger team requires more meaningful workflows under the project brief.
 
 ## References
 
-- Project brief: Final Project Requirements.pdf; supplemental Pasted markdown.md.
-- Original project: Askomm/Final_Project at the base version above.
 - Microsoft Learn: C# records, pattern matching, LINQ, System.Text.Json, and native
   interoperability. The project uses .NET framework APIs and its own C code;
   it has no added third-party runtime dependencies.

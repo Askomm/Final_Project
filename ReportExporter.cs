@@ -8,7 +8,6 @@ public static class ReportExporter
         string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            // Serialize before opening a file; close before replacing the destination.
             string json = JsonSerializer.Serialize(reports, new JsonSerializerOptions { WriteIndented = true });
             using (var writer = new StreamWriter(temporary)) { writer.Write(json); }
             File.Move(temporary, path, overwrite: true);

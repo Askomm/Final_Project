@@ -8,11 +8,9 @@ public sealed record ReportBundle(IReadOnlyList<Offer> Standard, IReadOnlyList<O
 
 public static class RentalExtensions
 {
-    // A reusable price constraint on a sequence of customer offers.
     public static IEnumerable<Offer> WithinBudget(this IEnumerable<Offer> offers, decimal budget) =>
         offers.Where(offer => offer.TotalPrice <= budget);
 
-    // A reusable business projection on the fleet; no shared state changes.
     public static IEnumerable<FleetTotal> SummarizeFleet(this IEnumerable<Car> cars, Func<Car, decimal> price) =>
         cars.GroupBy(car => car.Type)
             .Select(group => new FleetTotal(group.Key, group.Count(), group.Sum(price)));
@@ -20,7 +18,6 @@ public static class RentalExtensions
 
 public static class ReportQueries
 {
-    // Curried: discount -> car -> price. Only a decimal is captured by the closure.
     public static Func<Car, decimal> CreatePrice(decimal discount)
     {
         if (discount < 0m || discount > 1m) throw new ArgumentOutOfRangeException(nameof(discount));

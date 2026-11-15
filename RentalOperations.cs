@@ -2,7 +2,6 @@ using System.Globalization;
 
 namespace Code;
 
-// Private construction means an invalid period cannot enter the new workflows.
 public sealed class BookingPeriod
 {
     public DateOnly Start { get; }
@@ -56,16 +55,13 @@ public static class RentalOperations
         rental.StartDate < period.End && period.Start < OccupiedUntil(rental) &&
         rental.StartDate < OccupiedUntil(rental);
 
-    // Stage 1: a pure, deferred availability query with no customer-specific filter.
     public static IEnumerable<Car> SelectAvailable(RentalData data, BookingPeriod period) =>
         data.Cars.Where(car => !data.Rentals.Any(r => r.CarId == car.Id && Overlaps(r, period)));
 
-    // Stage 2 calls the existing yield-return transformation and configured policies.
     public static Offer[] PriceOffers(IEnumerable<Car> available, BookingPeriod period,
         int fee, Func<Car, decimal> policy) =>
         ReportQueries.CreateOffers(available, period.Days, fee, policy).ToArray();
 
-    // Stage 3 materialises reusable, deterministically ordered report snapshots.
     public static ReportBundle BuildSearchReport(RentalData data, Offer[] standard, Offer[] discounted) =>
         new(ReportQueries.AffordableOffers(standard, decimal.MaxValue),
             ReportQueries.AffordableOffers(discounted, decimal.MaxValue),

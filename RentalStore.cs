@@ -3,7 +3,6 @@ using System.Text.Json.Serialization;
 
 namespace Code;
 
-// Side-effect boundary: the pure transition is committed only after every stage succeeds.
 public sealed class RentalStore(string path)
 {
     public string PathName => path;
@@ -13,8 +12,6 @@ public sealed class RentalStore(string path)
     {
         try
         {
-            // Cooperating app instances hold an exclusive handle across load/change/save.
-            // The empty lock file stays on disk; the handle, not its existence, is the lock.
             using var lease = new FileStream(path + ".lock", FileMode.OpenOrCreate,
                 FileAccess.ReadWrite, FileShare.None);
             return Load().Bind(change).Bind(candidate =>

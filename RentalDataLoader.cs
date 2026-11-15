@@ -20,7 +20,6 @@ public static class RentalDataLoader
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        // Missing value-type fields must not silently become valid zero/false values.
         RespectRequiredConstructorParameters = true,
         Converters = { new JsonStringEnumConverter() }
     };
