@@ -195,7 +195,8 @@ commands that print the expected failure and exit with status 1.
 ## Repository
 
 Repository: https://github.com/Askomm/Final_Project
-
+Branch: main
+Reviewed application source commit: 16354549c03ab30fe092029f3d856398a1aacbfa
 ## References
 
 - Microsoft Learn: C# records, pattern matching, LINQ, System.Text.Json, and native
